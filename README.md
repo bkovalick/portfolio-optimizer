@@ -2,7 +2,7 @@
 
 ## Overview
 
-Experiment-driven research platform for systematic strategy development and evaluation across asset classes — MOSEK Fusion optimization, multi-strategy backtesting, ML-based signal research, and signal monitoring. The architecture is designed for extensibility, reproducibility, and clear separation of concerns.
+Experiment-driven research platform for systematic strategy development and evaluation across asset classes — multi-strategy backtesting, ML-based signal research, portfolio optimization, and signal monitoring. The architecture is designed for extensibility, reproducibility, and clear separation of concerns.
 
 ## Project Structure
 
@@ -79,7 +79,7 @@ src/
 - **reference/**: Static metadata — asset class and sector maps.
 - **domain/**:
   - **machine_learning/**: `FeatureBuilder` constructs cross-sectional features (momentum, volatility, reversal, beta, VIX regime interactions). `CrossSectionalModel` trains and scores assets using Ridge regression.
-  - **optimizers/**: `IOptimizer` interface and MOSEK Fusion-based implementations.
+  - **optimizers/**: `IOptimizer` interface and optimizer implementations.
   - **portfolio/**: `Portfolio` tracks weights, returns, and turnover through time.
   - **signals/**: Signal generation — momentum, mean reversion, Black-Litterman, ML scores, volatility forecasting.
   - **strategies/**: Strategy implementations that combine signals and optimizers to produce target weights on each rebalance date.
@@ -181,7 +181,7 @@ report.generate_report()
 
 - Implement your strategy in `domain/strategies/` inheriting `IStrategy`, or optimizer in `domain/optimizers/` inheriting `IOptimizer`.
 - Register it in the appropriate factory in `services/`.
-- Optimizers must use MOSEK Fusion via `with Model() as M:` context manager.
+- Optimizers must inherit `IOptimizer` and be registered in the optimizer factory.
 
 ## Project Conventions
 
@@ -193,7 +193,7 @@ report.generate_report()
 ## Dependencies
 
 - Python 3.10+
-- scikit-learn, scipy, numpy, pandas, yfinance, fastapi, uvicorn
+- scikit-learn, scipy, numpy, pandas, yfinance, fastapi, uvicorn, cvxpy
 - See `requirements.txt` for pinned versions
 
 ## Setup

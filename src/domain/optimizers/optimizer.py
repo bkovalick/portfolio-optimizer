@@ -12,7 +12,7 @@ class PortfolioRebalancer:
 	def __init__(self,
 			  	 target_weights: np.ndarray,
 				 available_cash: float, 
-			  	 prices: pd.DataFrame):
+			  	 prices: np.ndarray):
 		self.target_weights = target_weights
 		self.available_cash = available_cash
 		self.prices = prices
@@ -23,7 +23,7 @@ class PortfolioRebalancer:
 		objective = self._setup_objective(decision_variables)
 		prob = cp.Problem(objective, constraints)
 
-		for solver in [cp.HIGHS]:
+		for solver in ["HIGHS"]:
 			try:
 				prob.solve(solver=solver, verbose=False)
 				if prob.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
@@ -37,7 +37,7 @@ class PortfolioRebalancer:
 		return optimal_weights
 	
 	def _setup_decision_variables(self):
-		n_assets = self.target_weights
+		n_assets = len(self.target_weights)
 		optimal_weights = cp.Variable(n_assets, integer = True)
 		remaining_cash = cp.Variable()
 		return {
@@ -113,12 +113,12 @@ class Optimizer(IOptimizer):
 		portfolio_weights = cp.Variable(n_assets)
 		portfolio_buys = cp.Variable(n_assets - 1, nonneg=True)
 		portfolio_sells = cp.Variable(n_assets - 1, nonneg=True)
-		total_trades = cp.Variable(n_assets - 1)
+		# total_trades = cp.Variable(n_assets - 1)
 		return {
 			'portfolio_weights': portfolio_weights,
 			'portfolio_buys': portfolio_buys,
-			'portfolio_sells': portfolio_sells,
-			'total_trades': total_trades
+			'portfolio_sells': portfolio_sells
+			# 'total_trades': total_trades
 		}
 
 	def _setup_constraints(self, 
@@ -151,7 +151,7 @@ class Optimizer(IOptimizer):
 		risky_current = self._get_risky_current(current_weights)
 		portfolio_buys = decision_variables.get('portfolio_buys')
 		portfolio_sells = decision_variables.get('portfolio_sells')
-		total_trades = decision_variables.get('total_trades')
+		# total_trades = decision_variables.get('total_trades')
 		min_position_size = getattr(rebalance_problem, 'min_position_size', 0.0)
 		max_position_size = getattr(rebalance_problem, 'max_position_size', 1.0)
 		starting_portfolio_value = rebalance_problem.starting_portfolio_value
@@ -159,8 +159,8 @@ class Optimizer(IOptimizer):
 				cp.sum(portfolio_weights) == 1,
 				portfolio_weights[:-1] - risky_current == portfolio_buys - portfolio_sells,
 				portfolio_weights >= min_position_size,
-				portfolio_weights <= max_position_size,
-				total_trades == (portfolio_buys - portfolio_sells) * starting_portfolio_value
+				portfolio_weights <= max_position_size
+				# total_trades == (portfolio_buys - portfolio_sells) * starting_portfolio_value
 			]
 	
 	def _setup_volatility_constraints(self, 

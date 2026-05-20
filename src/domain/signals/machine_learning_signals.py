@@ -102,20 +102,6 @@ class MLPredictorSignalsState:
 
         all_tickers = self.feature_builder.prices.columns
         return self.cached_scores.reindex(all_tickers)
-    
-    @property
-    def covariance_matrix(self) -> np.ndarray:
-        if not self.ml_config.enabled or self.scores is None:
-            return None
-        
-        fwd_returns = pd.DataFrame(self.fwd_returns_history).T.dropna()
-        if len(fwd_returns) < 2:
-            return None
-
-        lw = LedoitWolf()
-        lw.fit(fwd_returns.values)
-        cov = lw.covariance_ * (252 / self.ml_config.horizon)
-        return 0.5 * (cov + cov.T)
 
 class MLPredictorSignal(RiskReturnSignals):
     def __init__(self, 
@@ -139,9 +125,3 @@ class MLPredictorSignal(RiskReturnSignals):
             nan_mask = np.isnan(scores)
             scores[nan_mask] = fallback[nan_mask]
         return scores
-    
-    def covariance_matrix(self) -> np.ndarray:
-        cov = self.state.covariance_matrix
-        if cov is None:
-            return super().covariance_matrix()
-        return cov

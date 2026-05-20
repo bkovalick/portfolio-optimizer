@@ -37,17 +37,12 @@ class BlackLittermanSignal(RiskReturnSignals):
         if self.black_litterman is None:
             return super().mean_returns()
         
-        sigma = (self.ml_state.covariance_matrix 
-                if self.use_ml and self.ml_state.covariance_matrix is not None 
-                else self.covariance_matrix())        
+        sigma = self.covariance_matrix()
         pi = self._compute_equilibrium_returns(sigma)
         P, Q, omega = self._build_views(sigma)
         if not np.any(P):
-            return pi  # no valid view (too few assets); fall back to equilibrium returns
-        posterior = self._compute_posterior(pi, sigma, P, Q, omega)
-        if not np.all(np.isfinite(posterior)):
             return pi
-        return posterior
+        return self._compute_posterior(pi, sigma, P, Q, omega)
     
     def _compute_equilibrium_returns(self, sigma):
         """

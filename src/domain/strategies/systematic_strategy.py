@@ -30,22 +30,24 @@ class SystematicStrategy(StrategyInterface):
             self.rebalance_problem, active_signals, current_weights
         )
         
-        trades = self._convert_to_trades(
-            optimized,
-            market_prices=self._get_prices(active_signals)
-        )
+        # live = False
+        # if live:
+        #     trades = self._convert_to_trades(
+        #         optimized,
+        #         market_prices=self._get_prices(active_signals)
+        #     )
         return optimized
     
     def _convert_to_trades(self, 
-                           optimized_weights: np.ndarray,
+                           target_weights: np.ndarray,
                            market_prices: pd.DataFrame) -> np.ndarray:
         available_cash = self.rebalance_problem.starting_portfolio_value + \
             self.rebalance_problem.cash_infusion
         
         rebalancer = PortfolioRebalancer(
-            optimized_weights,
+            target_weights,
             available_cash,
-            market_prices
+            market_prices.iloc[-1].values
         )
         return rebalancer.generate_trades()
     
