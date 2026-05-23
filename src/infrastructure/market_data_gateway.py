@@ -49,6 +49,7 @@ class MarketDataStore:
     """ Environment to interact with market data gateway """
     def __init__(self, market_store_config: MarketStoreConfig):
         """ Initialize with market data gateway and parameters """
+        self.transaction_cost = market_store_config.transaction_cost
         self._prices = MarketDataGateway.get_price_data(market_store_config)
         self._prices = self._prices.sort_index()
         self._prices = self._prices.dropna(how='all')

@@ -10,21 +10,25 @@ class MarketState:
                  store: MarketDataStore, 
                  state_config: MarketStateConfig):
         """ Stores the current state of the market """
+        self.cursor = 0
         self.store = store
         self.state_config = state_config
         self.lookback_window_key = state_config.lookback_window_key
         self.market_frequency = state_config.market_frequency
         self.lookback_window = state_config.lookback_window
         self.investment_universe = state_config.investment_universe
+        self.signal_universe = state_config.signal_universe
         self.exogenous_tickers = state_config.exogenous_tickers
         self.cash_allocation = state_config.cash_allocation
         self.annual_trading_days = state_config.annual_trading_days
-        self.cursor = 0
-        self.prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
-        self.exogenous_universe = self._resample(self.market_frequency, 
-                                                 self._parse_universe(self.exogenous_tickers)) \
-                            if set(self.exogenous_tickers).issubset(self.store.prices.columns) else pd.DataFrame()
-        self.returns = self.prices.pct_change(fill_method=None).fillna(0)
+        self.transaction_cost = store.transaction_cost
+
+        self.investment_prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
+        self.investment_returns = self.investment_prices.pct_change(fill_method=None).fillna(0)
+        self.signal_prices = self._resample(self.market_frequency, self._parse_universe(self.signal_universe))
+        self.signal_returns = self.signal_prices.pct_change(fill_method=None).fillna(0)
+        self.exogenous_universe = self._resample(self.market_frequency, self._parse_universe(self.exogenous_tickers)) \
+                            if set(self.exogenous_tickers).issubset(self.store.prices.columns) else pd.DataFrame()        
 
     @property
     def asset_class_map(self):
@@ -48,13 +52,13 @@ class MarketState:
         self.cursor += 1
 
     def lookback_prices(self) -> pd.DataFrame:
-        window = self.prices.iloc[
+        window = self.investment_prices.iloc[
             self.cursor - self.lookback_window : self.cursor
         ]
         return window
 
     def lookback_returns(self) -> pd.DataFrame:
-        lookback_returns = self.returns.iloc[
+        lookback_returns = self.investment_returns.iloc[
             self.cursor - self.lookback_window : self.cursor
         ]
         return lookback_returns
@@ -64,7 +68,7 @@ class MarketState:
         return w / w.iloc[0]
     
     def current_date(self) -> datetime:
-        return self.prices.index[self.cursor]
+        return self.investment_prices.index[self.cursor]
     
     def has_next(self) -> bool:
-        return self.cursor < len(self.prices) - 1
+        return self.cursor < len(self.investment_prices) - 1

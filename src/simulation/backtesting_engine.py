@@ -72,8 +72,8 @@ class BacktestingEngine(BacktestingEngineInterface):
             for ticker in tickers
         ])
         self.portfolio.initialize(
-            self.market_state.prices.index, 
-            self.market_state.prices.columns, 
+            self.market_state.investment_prices.index, 
+            self.market_state.investment_prices.columns, 
             initial_weights
         )
         
@@ -89,7 +89,7 @@ class BacktestingEngine(BacktestingEngineInterface):
                 current_year = date.year
                 print(f"Processing {current_year}...")
 
-            current_returns = self.market_state.returns.iloc[cursor]
+            current_returns = self.market_state.investment_returns.iloc[cursor]
 
             prev_weights = self.portfolio.drift(prev_weights, current_returns, cursor)
             if cursor < self.market_state.lookback_window:

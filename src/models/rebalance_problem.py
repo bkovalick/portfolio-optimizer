@@ -81,15 +81,15 @@ class RebalanceProblem:
     
     @property
     def asset_class_map(self) -> dict:
-        return self._data.get("asset_class_map", {})
+        return self._data.get("asset_class_map", None)
     
     @property
     def sector_map(self) -> dict:
-        return self._data.get("sector_map", {})
+        return self._data.get("sector_map", None)
 
     @property
     def security_to_etf_map(self) -> dict:
-        return self._data.get("security_to_etf_map", {})
+        return self._data.get("security_to_etf_map", None)
     
     @property
     def signal_universe(self) -> list:

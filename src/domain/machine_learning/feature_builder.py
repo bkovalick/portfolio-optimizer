@@ -19,10 +19,10 @@ class FeatureBuilder:
                  features: Optional[List[str]] = None):
         features = features or []
         self.features = features
-        self.prices = market_state.prices.copy()
-        self.returns = market_state.returns.copy()
+        self.prices = market_state.investment_prices.copy()
+        self.returns = market_state.investment_returns.copy()
         self.exogenous_universe = market_state.exogenous_universe.copy()
-        self.benchmark = benchmark
+        self.benchmark = benchmark.copy()
         self.benchmark_returns = benchmark.pct_change(fill_method=None).fillna(0)
         self.lookbacks = LOOKBACK_WINDOWS.get(market_frequency, LOOKBACK_WINDOWS["d"])
         self.reversal_window = self.lookbacks.get("1w", 1)
