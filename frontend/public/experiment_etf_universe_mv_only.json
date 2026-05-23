@@ -53,7 +53,7 @@
         "market_frequency": "d",
         "cash_allocation": 0.005,
         "exogenous_tickers": [],
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "IVW",
           "IWD",

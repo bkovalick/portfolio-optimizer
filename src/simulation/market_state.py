@@ -15,12 +15,12 @@ class MarketState:
         self.lookback_window_key = state_config.lookback_window_key
         self.market_frequency = state_config.market_frequency
         self.lookback_window = state_config.lookback_window
-        self.universe_tickers = state_config.universe_tickers
+        self.investment_universe = state_config.investment_universe
         self.exogenous_tickers = state_config.exogenous_tickers
         self.cash_allocation = state_config.cash_allocation
         self.annual_trading_days = state_config.annual_trading_days
         self.cursor = 0
-        self.prices = self._resample(self.market_frequency, self._parse_universe(self.universe_tickers))
+        self.prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
         self.exogenous_universe = self._resample(self.market_frequency, 
                                                  self._parse_universe(self.exogenous_tickers)) \
                             if set(self.exogenous_tickers).issubset(self.store.prices.columns) else pd.DataFrame()
@@ -28,11 +28,11 @@ class MarketState:
 
     @property
     def asset_class_map(self):
-        return MarketMetadata.build_asset_class_map(self.universe_tickers)
+        return MarketMetadata.build_asset_class_map(self.investment_universe)
     
     @property
     def sector_map(self):
-        return MarketMetadata.build_sector_map(self.universe_tickers)
+        return MarketMetadata.build_sector_map(self.investment_universe)
     
     def _parse_universe(self, tickers: list) -> pd.DataFrame:
         return self.store.prices[tickers]

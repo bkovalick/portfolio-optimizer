@@ -58,11 +58,12 @@ class RebalanceProblemBuilder:
 
     def build(self) -> RebalanceProblem:
         """Build and return a RebalanceProblem instance."""
+        n_assets = len(investment_universe)
         cash_allocation = self.universe_meta.get("cash_allocation", 0.0)
-        tickers = self.universe_meta.get("tickers", ["AAPL"])
-        n_assets = len(tickers)
-        initial_weights = self._setup_initial_weights(cash_allocation, tickers, n_assets)
-
+        investment_universe = self.universe_meta.get("investment_universe", ["AAPL"])
+        signal_universe = self.universe_meta.get("signal_universe", investment_universe)
+        security_to_etf_map = {}
+        initial_weights = self._setup_initial_weights(cash_allocation, investment_universe, n_assets)
         constraints = self.config.get("constraints", {})
         strategy_rules = self.config.get("strategy_rules", {}) 
         prepared_data = {
@@ -85,7 +86,9 @@ class RebalanceProblemBuilder:
             "concentration_strength": constraints.get("concentration_strength", 1),
             "asset_class_map": self.universe_meta.get("asset_class_map", {}),
             "sector_map": self.universe_meta.get("sector_map", {}),
-            "tickers": tickers,
+            "investment_universe": investment_universe,
+            "signal_universe": signal_universe,
+            "security_to_etf_map": security_to_etf_map,
             "optimizer_vol_constraint": constraints.get("optimizer_vol_constraint", None),
             "vol_target": strategy_rules.get("vol_target", None),
             "vol_lookback_days": self._resolve_window(strategy_rules.get("vol_lookback_days", None)),

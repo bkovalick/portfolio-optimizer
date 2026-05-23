@@ -184,7 +184,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "AAPL",
           "MSFT",
           "NVDA",

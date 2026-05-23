@@ -26,7 +26,7 @@
         "lookback_window_key": "1y",
         "market_frequency": "w",
         "cash_allocation": 0.0,
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "AGG",
           "GLD",

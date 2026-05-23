@@ -55,7 +55,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "IVW",
           "IWD",

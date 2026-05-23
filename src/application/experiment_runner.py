@@ -42,7 +42,7 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     state = MarketState(market_store, state_config)
 
     universe_meta = {
-            "tickers": state.universe_tickers,
+            "investment_universe": state.investment_universe,
             "cash_allocation": state.cash_allocation,
             "asset_class_map": state.asset_class_map,
             "sector_map": state.sector_map,
@@ -231,7 +231,7 @@ class ExperimentRunner:
                              market_state: MarketState,
                              market_store_config: MarketStoreConfig) -> dict:
         return {
-            "tickers": market_state.universe_tickers,
+            "investment_universe": market_state.investment_universe,
             "cash_allocation": market_state.cash_allocation,
             "asset_class_map": market_state.asset_class_map,
             "sector_map": market_state.sector_map,

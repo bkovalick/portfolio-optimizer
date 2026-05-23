@@ -83,7 +83,7 @@ class Optimizer(IOptimizer):
 			  current_weights: np.ndarray = None) -> RebalanceSolution:
 		"""Optimize portfolio weights for the given rebalance problem."""
 		if current_weights is None:
-			tickers = rebalance_problem.tickers
+			tickers = rebalance_problem.investment_universe
 			current_weights = np.array([
 				rebalance_problem.initial_weights.get(ticker, 0.0) 
 				for ticker in tickers

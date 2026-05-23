@@ -86,10 +86,18 @@ class RebalanceProblem:
     @property
     def sector_map(self) -> dict:
         return self._data.get("sector_map", {})
+
+    @property
+    def security_to_etf_map(self) -> dict:
+        return self._data.get("security_to_etf_map", {})
     
     @property
-    def tickers(self) -> dict:
-        return self._data.get("tickers", ["AAPL"])
+    def signal_universe(self) -> list:
+        return self._data.get("signal_universe") or self.investment_universe
+    
+    @property
+    def investment_universe(self) -> list:
+        return self._data.get("investment_universe", ["AAPL"])
     
     @property
     def optimizer_vol_constraint(self) -> float:

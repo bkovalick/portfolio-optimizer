@@ -154,7 +154,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -380,7 +380,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -606,7 +606,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -815,7 +815,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -1017,7 +1017,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -1243,7 +1243,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
