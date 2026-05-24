@@ -19,8 +19,8 @@ class FeatureBuilder:
                  features: Optional[List[str]] = None):
         features = features or []
         self.features = features
-        self.prices = market_state.investment_prices.copy()
-        self.returns = market_state.investment_returns.copy()
+        self.prices = market_state.signal_prices.copy()
+        self.returns = market_state.signal_returns.copy()
         self.exogenous_universe = market_state.exogenous_universe.copy()
         self.benchmark = benchmark.copy()
         self.benchmark_returns = benchmark.pct_change(fill_method=None).fillna(0)
@@ -128,7 +128,6 @@ class FeatureBuilder:
             return pd.DataFrame(index=self.prices.columns)
 
         features = pd.DataFrame(index=self.prices.columns)
-        beta_1y = self._compute_rolling_beta(rets, market_rets, self.lookbacks["1y"])
         features["mom_1m"] = px.iloc[-1] / px.iloc[-self.lookbacks["1m"]] - 1
         features["mom_12m"] = px.iloc[-self.lookbacks["1m"]] / px.iloc[-self.lookbacks["1y"]] - 1
         features["vol_1m"] = rets.iloc[-self.lookbacks["1m"]:].std()
@@ -139,9 +138,11 @@ class FeatureBuilder:
         features["max_return"] = rets.iloc[-self.lookbacks["1m"]:].max()
         features["high_52w"] = px.iloc[-1] / px.iloc[-self.lookbacks["1y"]:].max()
         features["beta_1m"] = self._compute_rolling_beta(rets, market_rets, self.lookbacks["1m"])
+        beta_1y = self._compute_rolling_beta(rets, market_rets, self.lookbacks["1y"])
         features["beta_1y"] = beta_1y
-        features["idiosyncratic_vol"] = (rets - beta_1y.multiply(market_rets, axis=0))\
-            .rolling(self.lookbacks["1y"]).std()
+        predicted = beta_1y.values * market_rets.iloc[-self.lookbacks["1y"]:].values[:, None]
+        residuals = rets.iloc[-self.lookbacks["1y"]:].values - predicted
+        features["idiosyncratic_vol"] = pd.Series(residuals.std(axis=0), index=rets.columns)
         features = features.rank(axis=0, pct=True)
         return features.dropna()
     

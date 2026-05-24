@@ -21,12 +21,8 @@ def create_folder_path(folder_name: str):
     path.mkdir(parents=True, exist_ok=True)
 
 def local_run():
-    # with open(f"src/config/experiment_securities_ml_bl_mean_reversion.json", 'r') as f:
-        # config = json.load(f)
-    with open(f"src/config/experiment_securities_ml_bl_momentum_full_universe.json", 'r') as f:
+    with open(f"src/config/experiment_two_layer_etf.json", 'r') as f:
         config = json.load(f)
-    # with open(f"src/config/experiment_etf_universe_mv_only.json", 'r') as f:
-        # config = json.load(f)
 
     config = config.copy()
     runner = ExperimentRunner(config)

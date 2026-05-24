@@ -5,6 +5,7 @@ from simulation.market_state import MarketState
 
 from typing import Optional
 import numpy as np
+import pandas as pd
 
 class BlackLittermanSignal(RiskReturnSignals):
     def __init__(self, 
@@ -16,6 +17,8 @@ class BlackLittermanSignal(RiskReturnSignals):
 
         self.ml_state = ml_state
         self.ml_signals_config = self.signals_config.ml_signals_config
+        self.security_to_etf_map = self.market_state.security_to_etf_map
+        self.investment_universe = self.market_state.investment_universe
         self.current_weights = current_weights
         self.use_ml = (
             self.ml_signals_config is not None
@@ -100,11 +103,28 @@ class BlackLittermanSignal(RiskReturnSignals):
         mean_reversion_window periods, using reversion_view as the spread.
         """
         if self.use_ml:
-            return self.ml_state.scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
+            scores = self.ml_state.scores
+
+            if self.security_to_etf_map is not None:
+                scores = self._aggregate_to_etfs(scores)
+
+            return scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
 
         window = getattr(self.signals_config, "mean_reversion_window", 4)
         short_returns = self.market_state.lookback_prices().pct_change(window, fill_method=None).iloc[-1]
         return short_returns.rank(), self.black_litterman.get("reversion_view", 0.03)
+    
+    def _aggregate_to_etfs(self, security_scores: pd.Series) -> pd.Series:
+        etf_scores = {}
+        for etf in self.investment_universe:
+            constituents = [ s for s, mapped_etf in self.security_to_etf_map.items()
+                            if mapped_etf == etf]
+            if constituents:
+                etf_scores[etf] = security_scores[constituents].mean()
+            else:
+                etf_scores[etf] = 0
+
+        return pd.Series(etf_scores)
     
     def _determine_view_direction(self, n: int, winners, losers):
         """

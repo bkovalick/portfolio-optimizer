@@ -18,9 +18,11 @@ class MarketState:
         self.lookback_window = state_config.lookback_window
         self.investment_universe = state_config.investment_universe
         self.signal_universe = state_config.signal_universe
+        self.security_to_etf_map = state_config.security_to_etf_map
         self.exogenous_tickers = state_config.exogenous_tickers
         self.cash_allocation = state_config.cash_allocation
         self.annual_trading_days = state_config.annual_trading_days
+        self.security_to_etf_map = state_config.security_to_etf_map
         self.transaction_cost = store.transaction_cost
 
         self.investment_prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
@@ -62,6 +64,22 @@ class MarketState:
             self.cursor - self.lookback_window : self.cursor
         ]
         return lookback_returns
+    
+    def signal_lookback_prices(self) -> pd.DataFrame:
+        window = self.signal_prices.iloc[
+            self.cursor - self.lookback_window : self.cursor
+        ]
+        return window
+
+    def signal_lookback_returns(self) -> pd.DataFrame:
+        lookback_returns = self.signal_returns.iloc[
+            self.cursor - self.lookback_window : self.cursor
+        ]
+        return lookback_returns    
+    
+    def signal_normalized_prices(self) -> pd.DataFrame:
+        w = self.signal_lookback_prices()
+        return w / w.iloc[0]
     
     def normalized_prices(self) -> pd.DataFrame:
         w = self.lookback_prices()

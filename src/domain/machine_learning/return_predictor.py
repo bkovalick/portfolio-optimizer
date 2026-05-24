@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
 
-class ISignalModel(ABC):
+class ReturnPredictor(ABC):
     """Interface for cross-sectional return prediction models."""
 
     @abstractmethod
@@ -21,4 +21,4 @@ class ISignalModel(ABC):
         X: (n_assets, n_features)
         Returns: (n_assets,) array of predicted scores
         """
-
+        ...

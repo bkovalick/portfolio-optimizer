@@ -60,8 +60,6 @@ class RebalanceProblemBuilder:
         n_assets = len(self.market_state.investment_universe)
         cash_allocation = self.market_state.cash_allocation
         investment_universe = self.market_state.investment_universe
-        signal_universe = self.market_state.signal_universe or investment_universe
-        security_to_etf_map = {}
         initial_weights = self._setup_initial_weights(cash_allocation, investment_universe, n_assets)
         prepared_data = {
             "n_assets": n_assets,
@@ -84,8 +82,8 @@ class RebalanceProblemBuilder:
             "asset_class_map": self.market_state.asset_class_map,
             "sector_map": self.market_state.sector_map,
             "investment_universe": investment_universe,
-            "signal_universe": signal_universe,
-            "security_to_etf_map": security_to_etf_map,
+            "signal_universe": self.market_state.signal_universe,
+            "security_to_etf_map": self.market_state.security_to_etf_map,
             "optimizer_vol_constraint": self.rebalance_config.constraints.optimizer_vol_constraint,
             "vol_target": self.rebalance_config.strategy_rules.vol_target,
             "vol_lookback_days": self._resolve_window(self.rebalance_config.strategy_rules.vol_lookback_days),

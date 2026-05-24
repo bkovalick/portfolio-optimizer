@@ -1,5 +1,5 @@
 from domain.signals.risk_return_signals import RiskReturnSignals
-from domain.machine_learning.isignal_model import ISignalModel
+from src.domain.machine_learning.return_predictor import ReturnPredictor
 from domain.machine_learning.feature_builder import FeatureBuilder
 from models.signals_config import SignalsConfig
 from models.machine_learning_config import MachineLearningConfig
@@ -10,11 +10,14 @@ import numpy as np
 from datetime import datetime
 
 class MLPredictorSignalsState:
-    """Long-lived. Owns model training lifecycle."""
+    """
+       Holds the state of the machine learning predictor signals, including cached scores, 
+       training history, and forward returns.
+    """
     def __init__(self, 
                  ml_config: MachineLearningConfig, 
                  feature_builder: FeatureBuilder, 
-                 model: ISignalModel):
+                 model: ReturnPredictor):
         self.ml_config = ml_config
         self.feature_builder = feature_builder
         self.model = model

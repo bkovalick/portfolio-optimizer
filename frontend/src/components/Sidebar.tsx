@@ -59,7 +59,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     // Validate fixed weight strategies
     for (const s of editedStrategies) {
       if (s.rebalance_problem?.strategy_type === "fwp_strategy") {
-        const tickers = s.market_state_config?.universe_tickers ?? []
+        const tickers = s.market_state_config?.investment_universe ?? []
         const w = s.rebalance_problem?.initial_weights
         const dict = Array.isArray(w)
           ? Object.fromEntries(tickers.map((t: string, i: number) => [t, w[i] ?? 0]))
@@ -298,43 +298,43 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                           if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
                             const rawWeights = currentStrategy.rebalance_problem?.initial_weights
                             const currentWeights: Record<string, number> = Array.isArray(rawWeights)
-                              ? Object.fromEntries((currentStrategy.market_state_config?.universe_tickers ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
+                              ? Object.fromEntries((currentStrategy.market_state_config?.investment_universe ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
                               : (rawWeights ?? {})
                             const newWeights = Object.fromEntries(allTickers.map((t: string) => [t, currentWeights[t] ?? 0]))
                             const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.universe_tickers = allTickers
+                            updatedStrategies[selectedIdx].market_state_config.investment_universe = allTickers
                             updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
                             setEditedStrategies(updatedStrategies)
                             return
                           }
-                          updateField(["market_state_config", "universe_tickers"], allTickers)
+                          updateField(["market_state_config", "investment_universe"], allTickers)
                         }}>All</button>
 
                         <button style={smallBtn} onClick={() => {
                           if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
                             const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.universe_tickers = []
+                            updatedStrategies[selectedIdx].market_state_config.investment_universe = []
                             updatedStrategies[selectedIdx].rebalance_problem.initial_weights = {}
                             setEditedStrategies(updatedStrategies)
                             return
                           }
-                          updateField(["market_state_config", "universe_tickers"], [])
+                          updateField(["market_state_config", "investment_universe"], [])
                         }}>Clear</button>
                         <span style={{ fontSize: 10, color: "#8b949e" }}>
-                          {(currentStrategy.market_state_config?.universe_tickers ?? []).length} selected
+                          {(currentStrategy.market_state_config?.investment_universe ?? []).length} selected
                         </span>
                       </div>
                       <div style={tickerGrid}>
                         {(strategySet.market_store_config.tickers ?? [])
                           .filter((t: string) => t !== strategySet.market_store_config.benchmark)
                           .map((ticker: string) => {
-                            const selected = (currentStrategy.market_state_config?.universe_tickers ?? []).includes(ticker)
+                            const selected = (currentStrategy.market_state_config?.investment_universe ?? []).includes(ticker)
                             return (
                               <button
                                 key={ticker}
                                 style={selected ? tickerChipActive : tickerChip}
                                 onClick={() => {
-                                  const current = currentStrategy.market_state_config?.universe_tickers ?? []
+                                  const current = currentStrategy.market_state_config?.investment_universe ?? []
                                   const updated = selected
                                     ? current.filter((t: string) => t !== ticker)
                                     : [...current, ticker]
@@ -351,13 +351,13 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                                     )
                                     
                                     const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                                    updatedStrategies[selectedIdx].market_state_config.universe_tickers = updated
+                                    updatedStrategies[selectedIdx].market_state_config.investment_universe = updated
                                     updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
                                     setEditedStrategies(updatedStrategies)
                                     return
                                   }
 
-                                  updateField(["market_state_config", "universe_tickers"], updated)
+                                  updateField(["market_state_config", "investment_universe"], updated)
                                 }}
                               >{ticker}</button>
                             )
@@ -398,7 +398,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   </Section>
 
                   {currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy" && (() => {
-                    const tickers: string[] = currentStrategy.market_state_config?.universe_tickers ?? []
+                    const tickers: string[] = currentStrategy.market_state_config?.investment_universe ?? []
                     const rawWeights = currentStrategy.rebalance_problem?.initial_weights
                     
                     // Normalize to dict
