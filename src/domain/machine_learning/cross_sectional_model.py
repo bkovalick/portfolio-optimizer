@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from src.domain.machine_learning.return_predictor import ReturnPredictor
+from domain.machine_learning.return_predictor import ReturnPredictor
 from models.machine_learning_config import MachineLearningConfig
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Ridge

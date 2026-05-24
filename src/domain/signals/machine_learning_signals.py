@@ -1,5 +1,5 @@
 from domain.signals.risk_return_signals import RiskReturnSignals
-from src.domain.machine_learning.return_predictor import ReturnPredictor
+from domain.machine_learning.return_predictor import ReturnPredictor
 from domain.machine_learning.feature_builder import FeatureBuilder
 from models.signals_config import SignalsConfig
 from models.machine_learning_config import MachineLearningConfig
