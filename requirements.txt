@@ -21,3 +21,4 @@ six==1.16.0
 wrapt==1.16.0
 arch
 highspy
+duckdb

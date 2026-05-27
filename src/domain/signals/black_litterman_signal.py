@@ -106,8 +106,9 @@ class BlackLittermanSignal(RiskReturnSignals):
             scores = self.ml_state.scores
 
             if self.security_to_etf_map is not None:
-                scores = self._aggregate_to_etfs(scores)
-
+                etf_scores = self._aggregate_to_etfs(scores)
+                return etf_scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
+            
             return scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
 
         window = getattr(self.signals_config, "mean_reversion_window", 4)
@@ -119,10 +120,10 @@ class BlackLittermanSignal(RiskReturnSignals):
         for etf in self.investment_universe:
             constituents = [ s for s, mapped_etf in self.security_to_etf_map.items()
                             if mapped_etf == etf]
-            if constituents:
-                etf_scores[etf] = security_scores[constituents].mean()
-            else:
-                etf_scores[etf] = 0
+            if constituents and len(constituents) > 0:
+                score = security_scores[constituents].mean()
+                if not pd.isna(score):
+                    etf_scores[etf] = score
 
         return pd.Series(etf_scores)
     

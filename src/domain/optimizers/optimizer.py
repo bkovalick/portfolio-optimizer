@@ -113,12 +113,10 @@ class Optimizer(IOptimizer):
 		portfolio_weights = cp.Variable(n_assets)
 		portfolio_buys = cp.Variable(n_assets - 1, nonneg=True)
 		portfolio_sells = cp.Variable(n_assets - 1, nonneg=True)
-		# total_trades = cp.Variable(n_assets - 1)
 		return {
 			'portfolio_weights': portfolio_weights,
 			'portfolio_buys': portfolio_buys,
 			'portfolio_sells': portfolio_sells
-			# 'total_trades': total_trades
 		}
 
 	def _setup_constraints(self, 
@@ -134,12 +132,12 @@ class Optimizer(IOptimizer):
 		constraints.extend(
 			self._setup_turnover_constraints(decision_variables, rebalance_problem, current_weights)
 		)
-		constraints.extend(
-			self._setup_asset_class_constraints(decision_variables, rebalance_problem, current_weights)
-		)
-		constraints.extend(
-			self._setup_sector_constraints(decision_variables, rebalance_problem, current_weights)
-		)
+		# constraints.extend(
+		# 	self._setup_asset_class_constraints(decision_variables, rebalance_problem, current_weights)
+		# )
+		# constraints.extend(
+		# 	self._setup_sector_constraints(decision_variables, rebalance_problem, current_weights)
+		# )
 		return constraints
 			
 	def _setup_portfolio_constraints(self, 
@@ -151,7 +149,6 @@ class Optimizer(IOptimizer):
 		risky_current = self._get_risky_current(current_weights)
 		portfolio_buys = decision_variables.get('portfolio_buys')
 		portfolio_sells = decision_variables.get('portfolio_sells')
-		# total_trades = decision_variables.get('total_trades')
 		min_position_size = getattr(rebalance_problem, 'min_position_size', 0.0)
 		max_position_size = getattr(rebalance_problem, 'max_position_size', 1.0)
 		starting_portfolio_value = rebalance_problem.starting_portfolio_value
@@ -160,7 +157,6 @@ class Optimizer(IOptimizer):
 				portfolio_weights[:-1] - risky_current == portfolio_buys - portfolio_sells,
 				portfolio_weights >= min_position_size,
 				portfolio_weights <= max_position_size
-				# total_trades == (portfolio_buys - portfolio_sells) * starting_portfolio_value
 			]
 	
 	def _setup_volatility_constraints(self, 
