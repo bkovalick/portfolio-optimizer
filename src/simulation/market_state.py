@@ -24,7 +24,6 @@ class MarketState:
         self.annual_trading_days = state_config.annual_trading_days
         self.security_to_etf_map = state_config.security_to_etf_map
         self.transaction_cost = store.transaction_cost
-
         self.investment_prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
         self.investment_returns = self.investment_prices.pct_change(fill_method=None).fillna(0)
         self.signal_prices = self._resample(self.market_frequency, self._parse_universe(self.signal_universe))
@@ -40,6 +39,14 @@ class MarketState:
     def sector_map(self):
         return MarketMetadata.build_sector_map(self.investment_universe)
     
+    @property
+    def market_caps(self):
+        return self.store.market_caps[self.investment_universe]
+    
+    @property
+    def etf_market_caps(self):
+        return self.store.etf_market_caps[self.investment_universe]
+        
     def _parse_universe(self, tickers: list) -> pd.DataFrame:
         return self.store.prices[tickers]
         

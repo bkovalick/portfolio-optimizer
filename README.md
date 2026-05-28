@@ -10,6 +10,7 @@ Experiment-driven research platform for systematic strategy development and eval
 src/
 ├── main.py
 ├── application/
+│   ├── controller.py
 │   └── experiment_runner.py
 ├── config/
 │   └── experiment_*.json
@@ -17,7 +18,7 @@ src/
 │   ├── machine_learning/
 │   │   ├── cross_sectional_model.py
 │   │   ├── feature_builder.py
-│   │   └── isignal_model.py
+│   │   └── return_predictor.py
 │   ├── optimizers/
 │   │   ├── ioptimizer.py
 │   │   └── optimizer.py
@@ -41,13 +42,17 @@ src/
 │       ├── mean_variance_strategy.py
 │       └── systematic_strategy.py
 ├── infrastructure/
-│   └── market_data_gateway.py
+│   ├── market_data_gateway.py
+│   └── strategy_results_data_gateway.py
 ├── models/
 │   ├── backtest_result.py
+│   ├── backtest_run.py
 │   ├── experiment.py
 │   ├── experiment_model.py
 │   ├── machine_learning_config.py
 │   ├── market_config.py
+│   ├── monitoring_stats.py
+│   ├── rebalance_config.py
 │   ├── rebalance_problem.py
 │   ├── rebalance_solution.py
 │   ├── signals_config.py
@@ -64,7 +69,8 @@ src/
 │   └── strategy_factory.py
 ├── simulation/
 │   ├── backtesting_engine.py
-│   └── market_state.py
+│   ├── market_state.py
+│   └── parameter_sweeps.py
 └── utils/
     ├── lookback_windows.py
     └── rebalance_steps.py
@@ -73,23 +79,27 @@ src/
 ## Key Modules & Their Purpose
 
 - **main.py**: FastAPI entry point; exposes `/run-experiment` and `/download` endpoints.
-- **application/**: `ExperimentRunner` — orchestrates the full pipeline from config to results.
+- **application/**:
+  - `controller.py`: FastAPI route definitions.
+  - `ExperimentRunner`: Orchestrates the full pipeline from config to results.
 - **config/**: JSON experiment configs. Each file defines `market_store_config` and a list of strategies, each with a `market_state_config` (including `universe_tickers` and `exogenous_tickers`), `signals_config`, and `rebalance_problem`.
-- **infrastructure/**: Market data ingestion via yfinance (`MarketDataStore`).
-- **reference/**: Static metadata — asset class and sector maps.
+- **infrastructure/**:
+  - `MarketDataGateway`: Market data ingestion via yfinance.
+  - `StrategyResultsDataGateway`: Persists backtest results and monitoring stats to DuckDB.
+- **reference/**: Static metadata — asset class and sector maps (`market_metadata.py`).
 - **domain/**:
-  - **machine_learning/**: `FeatureBuilder` constructs cross-sectional features (momentum, volatility, reversal, beta, VIX regime interactions). `CrossSectionalModel` trains and scores assets using Ridge regression.
+  - **machine_learning/**: `FeatureBuilder` constructs cross-sectional features (momentum, volatility, reversal, beta, VIX regime interactions). `CrossSectionalModel` trains and scores assets using Ridge regression. `ReturnPredictor` wraps model training and inference.
   - **optimizers/**: `IOptimizer` interface and optimizer implementations.
   - **portfolio/**: `Portfolio` tracks weights, returns, and turnover through time.
-  - **signals/**: Signal generation — momentum, mean reversion, Black-Litterman, ML scores, volatility forecasting.
+  - **signals/**: Signal generation — momentum, mean reversion, Black-Litterman (with optional ML views), ML scores, volatility forecasting.
   - **strategies/**: Strategy implementations that combine signals and optimizers to produce target weights on each rebalance date.
-- **models/**: Pure data containers — no business logic. Includes `MarketStateConfig` (with `exogenous_tickers`), `RebalanceProblem`, `BacktestResult`, and `ExperimentModel`.
+- **models/**: Pure data containers — no business logic. Key types: `RebalanceProblem`, `BacktestResult`, `MonitoringStats`, `StrategyRun`, `ExperimentModel`.
 - **reporting/**:
   - `PerformanceAnalyzer`: Computes annualised return, volatility, Sharpe, Sortino, Calmar, tracking error, information ratio, VaR/CVaR, drawdown metrics, alpha, alpha decay, and turnover.
   - `SignalDecayMonitor`: Computes rolling IC (Spearman rank correlation), AR(1) half-life, and t-test significance of the mean IC.
   - `report_generation.py`: Excel report generation.
-- **services/**: Factories for optimizers and strategies; `RebalanceProblemBuilder` assembles all numeric inputs.
-- **simulation/**: `BacktestingEngine` drives the time-step loop. `MarketState` manages the investable universe (`prices`, `returns`) and exogenous series (`exogenous_universe`, e.g. VIX) separately.
+- **services/**: Factories for optimizers and strategies; `RebalanceProblemBuilder` assembles all numeric inputs for the optimizer.
+- **simulation/**: `BacktestingEngine` drives the time-step loop. `MarketState` manages the investable universe (`prices`, `returns`) and exogenous series (`exogenous_universe`, e.g. VIX) separately. `parameter_sweeps.py` supports grid search over strategy configs.
 - **utils/**: Lookback window definitions (frequency-adjusted period counts), rebalance step logic.
 
 ## Market State Config

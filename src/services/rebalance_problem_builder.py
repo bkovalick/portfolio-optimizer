@@ -29,17 +29,19 @@ class RebalanceProblemBuilder:
             return freq_map[value]
         return int(value)
     
-    def _build_init_weights_from_mkt_caps(self, market_caps: pd.Series) -> dict:
+    def _build_init_weights_from_mkt_caps(self) -> dict:
+        """Builds the initial weight vector based on market capitalization weights."""
+        market_caps = self.market_state.market_caps if self.market_state.security_to_etf_map is None \
+            else self.market_state.etf_market_caps
         return (market_caps / market_caps.sum()).to_dict()
 
     def _setup_initial_weights(self, 
                                cash_allocation: float, 
                                tickers: list, 
                                n_assets: int) -> dict: 
+        """ Determines the initial weight vector based on the rebalance configuration."""
         if self.rebalance_config.apply_market_caps:
-            market_caps = self.market_state.market_caps
-            if market_caps is not None:
-                return self._build_init_weights_from_mkt_caps(market_caps)
+            return self._build_init_weights_from_mkt_caps()
 
         explicit_weights = self.rebalance_config.initial_weights
         if explicit_weights:

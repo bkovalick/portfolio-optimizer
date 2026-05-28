@@ -35,6 +35,20 @@ class MarketDataGateway:
                 continue
 
         return market_caps
+    
+    @staticmethod
+    def get_etf_market_caps(tickers: list) -> dict:
+        market_caps = {}
+        for ticker in tickers:
+            try:
+                ticker_data = yf.Ticker(ticker).info
+                market_caps[ticker] = ticker_data.get("totalAssets", None)
+            except Exception as e:
+                print(f"Could not fetch market cap data for {ticker}: {e}")
+                market_caps[ticker] = 0
+                continue
+
+        return market_caps        
 
     @staticmethod
     def get_price_data_y_finance(tickers, start_date, end_date):
@@ -58,15 +72,17 @@ class MarketDataStore:
             raise ValueError("Market Data Store not created properly, please check inputs.")
         
         self._prices = self._prices.bfill().ffill()
-        tickers = self.prices.columns.tolist()
-        self._market_caps = MarketDataGateway.get_market_caps(tickers)        
         if "CASH" not in self._prices.columns:
             daily_rate = market_store_config.risk_free_rate / 252
             n = len(self._prices)
             self._prices["CASH"] = (1 + daily_rate) ** pd.Series(range(n), index=self._prices.index)
 
+        tickers = self.prices.columns.tolist()
+        self._market_caps = MarketDataGateway.get_market_caps(tickers)
         if "CASH" not in self._market_caps:
             self._market_caps["CASH"] = 0
+
+        self._etf_market_caps = MarketDataGateway.get_etf_market_caps(tickers)
 
     @property
     def prices(self) -> pd.DataFrame:
@@ -75,3 +91,7 @@ class MarketDataStore:
     @property
     def market_caps(self) -> pd.Series:
         return pd.Series(self._market_caps).fillna(0)
+    
+    @property
+    def etf_market_caps(self) -> pd.Series:
+        return pd.Series(self._etf_market_caps).fillna(0)
