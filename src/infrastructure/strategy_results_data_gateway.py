@@ -9,7 +9,7 @@ from models.strategy_run import StrategyRun
 from models.monitoring_stats import MonitoringStats
 
 class GatewayBase:
-    def __init__(self, database_name):
+    def __init__(self, database_name: str):
         self.conn = db.connect(database_name)
 
     def __enter__(self):
@@ -19,7 +19,6 @@ class GatewayBase:
         self.conn.close()
 
 class StrategyResultsDataGateway(GatewayBase):
-
     CREATE_TABLE = """
         CREATE TABLE IF NOT EXISTS strategy_runs (
             run_id          VARCHAR PRIMARY KEY,
@@ -90,7 +89,7 @@ class ExperimentMetaDataDataGateway(GatewayBase):
         self._ensure_schema()
 
     def _ensure_schema(self):
-        self.conn.execute(self.CREATE_TABLE)        
+        self.conn.execute(self.CREATE_TABLE)
 
     def save_experiment_instance(self, experiment: Experiment):
         d = experiment.to_dict()

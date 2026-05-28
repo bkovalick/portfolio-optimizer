@@ -216,6 +216,9 @@ class Optimizer(IOptimizer):
 		asset_class_map = rebalance_problem.asset_class_map
 		asset_class_constraints = rebalance_problem.asset_class_constraints
 		constraints = []
+		if asset_class_constraints is None:
+			return constraints
+		
 		for asset_class, min_max in asset_class_constraints.items():
 			if asset_class not in asset_class_map:
 				continue
@@ -243,6 +246,9 @@ class Optimizer(IOptimizer):
 		sector_constraints = rebalance_problem.sector_constraints
 		sector_map = rebalance_problem.sector_map
 		constraints = []
+		if sector_constraints is None:
+			return constraints
+				
 		for sector, min_max in sector_constraints.items():
 			if sector not in sector_map:
 				continue
