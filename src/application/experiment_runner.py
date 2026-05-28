@@ -14,6 +14,7 @@ from models.rebalance_problem import RebalanceProblem
 from models.experiment import Experiment
 from models.monitoring_stats import MonitoringStats
 from infrastructure.market_data_gateway import MarketDataStore
+from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway
 
 import uuid
 from datetime import datetime
@@ -108,6 +109,7 @@ class ExperimentRunner:
         for strategy_cfg in self.config["strategies"]:
             run = self._run_strategy(strategy_cfg, market_store, market_store_config)
             experiment.add_run(run)
+        self._save_results(experiment)
         return experiment
     
     def run_parallel(self) -> Experiment:
@@ -126,6 +128,7 @@ class ExperimentRunner:
                 run = future.result()
                 experiment.add_run(run)
 
+        self._save_results(experiment)
         return experiment
     
     def _run_strategy(self, 
@@ -194,6 +197,16 @@ class ExperimentRunner:
             created_at = datetime.now(),
             market_config = market_store_cfg 
         )
+    
+    def _save_results(self, experiment: Experiment):
+        pass
+        # self._save_experiment(experiment)
+
+    def _save_experiment(self, experiment: Experiment):
+        with ExperimentMetaDataDataGateway(self.config) as exp_gateway:
+            exp_gateway.save_experiment_instance(
+                experiment
+            )
 
     def _build_market_store_config(self) -> MarketStoreConfig:
         market_store_config = self.config.get("market_store_config", None)

@@ -55,7 +55,7 @@ class BlackLittermanSignal(RiskReturnSignals):
         """
         return self.delta * sigma @ self.current_weights
 
-    def _build_views(self, sigma):
+    def _build_views(self, sigma: np.ndarray):
         """
         Constructs the investor view matrices (P, Q, Omega) using a mean-reversion
         signal. Assets in the bottom quintile by recent returns are expected to
@@ -72,7 +72,7 @@ class BlackLittermanSignal(RiskReturnSignals):
         losers  = ranked <= quintile      # bottom 20%
         winners = ranked > n - quintile   # top 20%
 
-        P = self._determine_view_direction(n, winners, losers)
+        P = self._determine_view_direction(ranked, winners, losers)
         Q = np.array([expected_spread])
         
         omega_diag = np.diag(self.tau * P @ sigma @ P.T)
@@ -127,7 +127,10 @@ class BlackLittermanSignal(RiskReturnSignals):
 
         return pd.Series(etf_scores)
     
-    def _determine_view_direction(self, n: int, winners, losers):
+    def _determine_view_direction(self, 
+                                  ranked_scores: pd.Series, 
+                                  winners: np.ndarray, 
+                                  losers: np.ndarray) -> np.ndarray:
         """
         Builds the (1 x N) pick matrix P encoding a single long/short relative
         view based on the configured view_direction:
@@ -136,16 +139,16 @@ class BlackLittermanSignal(RiskReturnSignals):
         Each leg is equally weighted and normalised so the row sums to zero.
         Defaults to mean_reversion if view_direction is unrecognised.
         """
-        P = np.zeros((1, n))
+        n_investment = len(self.investment_universe)
+        P = np.zeros((1, n_investment))
 
         if winners.sum() == 0 or losers.sum() == 0:
             return P
-
-        if self.view_direction == "momentum":
-            P[0, winners] =  1 / winners.sum()  # long winners equally
-            P[0, losers]  = -1 / losers.sum()   # short losers equally
-        else:
-            P[0, losers]  =  1 / losers.sum()   # long losers equally
-            P[0, winners] = -1 / winners.sum()  # short winners equally
-
+        
+        for ticker in ranked_scores.index:
+            idx = self.investment_universe.index(ticker)
+            if losers.loc[ticker]:
+                P[0, idx]  = -1 / losers.sum() if self.view_direction == "momentum" else 1 / losers.sum()
+            elif winners.loc[ticker]:
+                P[0, idx] =  1 / winners.sum() if self.view_direction == "momentum" else -1 / winners.sum()
         return P

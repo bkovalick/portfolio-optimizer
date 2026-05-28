@@ -1,7 +1,7 @@
 {
   "_description": "Two-layer ML+BL momentum experiment. Signal generation on ~420-stock sector-balanced universe. Portfolio construction on 14 ETFs (11 sector SPDRs + AGG + LQD + TLT). Security scores aggregated to ETF level via sector mapping before BL view construction.",
   "market_store_config": {
-    "start_date": "2000-01-01",
+    "start_date": "2023-01-01",
     "end_date": "2026-05-22",
     "data_source": {
       "yfinance": null

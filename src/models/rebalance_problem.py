@@ -38,7 +38,18 @@ class RebalanceProblem:
     @property
     def cash_allocation(self) -> float:
         return self._data.get("cash_allocation")
+
+    @property
+    def cash_index(self) -> int | None:
+        try:
+            return self.investment_universe.index("Cash")
+        except:
+            return None
     
+    @property
+    def has_cash(self) -> bool:
+        return self.cash_index is not None
+        
     @property
     def rebalance_frequency(self) -> str:
         return self._data.get("rebalance_frequency", "weekly")
