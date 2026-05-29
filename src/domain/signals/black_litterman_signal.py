@@ -14,7 +14,6 @@ class BlackLittermanSignal(RiskReturnSignals):
                  ml_state: Optional[MLPredictorSignalsState],
                  current_weights: np.ndarray):
         super().__init__(market_state, signals_config)
-
         self.ml_state = ml_state
         self.ml_signals_config = self.signals_config.ml_signals_config
         self.security_to_etf_map = self.market_state.security_to_etf_map

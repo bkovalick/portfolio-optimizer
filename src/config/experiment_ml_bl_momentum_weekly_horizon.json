@@ -1,5 +1,6 @@
 {
   "_description": "Weekly rebalance with 1w forward return labels. Horizon aligned to holding period. Isolates effect of label/holding-period alignment.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "tickers": [
       "^VIX",

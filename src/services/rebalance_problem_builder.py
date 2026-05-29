@@ -5,23 +5,6 @@ from utils.lookback_windows import LOOKBACK_WINDOWS
 
 import pandas as pd
 
-ETF_MARKET_CAP_WEIGHTS = {
-    "XLK":  0.320,   # IT ~32% of S&P 500
-    "XLV":  0.125,   # Health Care
-    "XLF":  0.130,   # Financials
-    "XLY":  0.105,   # Consumer Discretionary
-    "XLI":  0.085,   # Industrials
-    "XLP":  0.058,   # Consumer Staples
-    "XLC":  0.088,   # Communication Services
-    "XLE":  0.038,   # Energy
-    "XLU":  0.023,   # Utilities
-    "XLB":  0.022,   # Materials
-    "XLRE": 0.022,   # Real Estate
-    "AGG":  0.015,
-    "LQD":  0.010,
-    "TLT":  0.010,
-} 
-
 class RebalanceProblemBuilder:
     """Orchestrates the pipeline to build a RebalanceProblem from input configuration."""
 
@@ -48,9 +31,6 @@ class RebalanceProblemBuilder:
     
     def _build_init_weights_from_mkt_caps(self) -> dict:
         """Builds the initial weight vector based on market capitalization weights."""
-        if self.market_state.security_to_etf_map is not None:
-            return ETF_MARKET_CAP_WEIGHTS
-        
         market_caps = self.market_state.market_caps
         return (market_caps / market_caps.sum()).to_dict()   
 

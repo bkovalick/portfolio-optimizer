@@ -1,5 +1,6 @@
 {
   "_description": "ML+BL momentum experiment on 100-stock sector-balanced universe. Trimmed version of full_universe config for faster iteration.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-04-02",

@@ -4,9 +4,7 @@ import json
 from dataclasses import asdict
 
 from models.experiment import Experiment
-from models.backtest_result import BacktestResult
 from models.strategy_run import StrategyRun
-from models.monitoring_stats import MonitoringStats
 
 class GatewayBase:
     def __init__(self, database_name: str):
@@ -24,36 +22,72 @@ class StrategyResultsDataGateway(GatewayBase):
             run_id          VARCHAR PRIMARY KEY,
             strategy_name   VARCHAR,
             strategy_config JSON,
-            result          JSON,
-            monitoring_stats JSON,
             metadata        JSON
         )
     """
 
     INSERT = """
         INSERT OR REPLACE INTO strategy_runs
-            (run_id, strategy_name, strategy_config, result, monitoring_stats, metadata)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (run_id, strategy_name, strategy_config, metadata)
+        VALUES (?, ?, ?, ?)
     """
 
-    def __init__(self, config):
-        super().__init__(config["database_name"])
-        self.config = config
+    INSERT_IC_SUMMARY = """
+    
+    """
+    
+    INSERT_IC_SERIES = """
+    
+    """    
+    
+    def __init__(self, database_name: str):
+        super().__init__(database_name)
         self._ensure_schema()
 
     def _ensure_schema(self):
         self.conn.execute(self.CREATE_TABLE)
 
-    def save(self, run: StrategyRun):
+    def save_strategy_run(self, run: StrategyRun):
         d = run.to_dict()
         self.conn.execute(self.INSERT, [
             d["run_id"],
             d["strategy_name"],
             json.dumps(d["strategy_config"]),
-            json.dumps(d["result"]),
-            json.dumps(d["monitoring_stats"]),
             json.dumps(d["metadata"]),
         ])
+
+        self._save_backtest_summary(d)
+        self._save_backtest_series(d)
+        self._save_ic_summary(d)
+        self._save_ic_series(d)
+
+    def _save_backtest_summary(self, backtest_summary: dict):
+        self.conn.execute(self.INSERT_B_SUMMARY [
+            json.dumps(backtest_summary["run_id"]),
+            json.dumps(backtest_summary["metric_name"]),
+            json.dumps(backtest_summary["value"]),
+        ])
+
+    def _save_backtest_series(self, backtest_series: dict):
+        self.conn.execute(self.INSERT_B_SERIES [
+            json.dumps(backtest_series["run_id"]),
+            json.dumps(backtest_series["metric_name"]),
+            json.dumps(backtest_series["value"]),
+        ])
+    
+    def _save_ic_summary(self, ic_summary: dict):
+        self.conn.execute(self.INSERT_IC_SUMMARY [
+            json.dumps(ic_summary["run_id"]),
+            json.dumps(ic_summary["metric_name"]),
+            json.dumps(ic_summary["value"]),
+        ])        
+
+    def _save_ic_series(self, ic_series: dict):
+        self.conn.execute(self.INSERT_IC_SERIES [
+            json.dumps(ic_series["run_id"]),
+            json.dumps(ic_series["metric_name"]),
+            json.dumps(ic_series["value"]),
+        ])        
 
     # def save(self, run: StrategyRun):
     #     # 1. main row
@@ -72,20 +106,18 @@ class ExperimentMetaDataDataGateway(GatewayBase):
         CREATE TABLE IF NOT EXISTS experiments (
             experiment_id VARCHAR PRIMARY KEY,
             created_at    TIMESTAMP,
-            market_config JSON,
-            strategy_runs JSON
+            market_config JSON
         )
     """
 
     INSERT = """
         INSERT OR REPLACE INTO experiments
-            (experiment_id, created_at, market_config, strategy_runs)
-        VALUES (?, ?, ?, ?)
+            (experiment_id, created_at, market_config)
+        VALUES (?, ?, ?)
     """
 
-    def __init__(self, config):
-        super().__init__(config["database_name"])
-        self.config = config
+    def __init__(self, database_name: str):
+        super().__init__(database_name)
         self._ensure_schema()
 
     def _ensure_schema(self):
@@ -97,6 +129,5 @@ class ExperimentMetaDataDataGateway(GatewayBase):
             d["experiment_id"],
             d["created_at"],
             json.dumps(d["market_config"]),
-            json.dumps(d["strategy_runs"]),
-        ])        
+        ])
     

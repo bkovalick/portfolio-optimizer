@@ -1,26 +1,25 @@
 from application.experiment_runner import ExperimentRunner
 from reporting.report_generation import ExcelGenerator
 from simulation.parameter_sweeps import ParameterSweeps
+from utils.logging_config import setup_logging
 
+import logging
 import json
-from datetime import datetime
+import uvicorn
 import os
 from io import BytesIO
 from pathlib import Path
-import uvicorn
-import logging
+from datetime import datetime
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    filename="optimizer.log"
-)
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def create_folder_path(folder_name: str):
     path = Path(folder_name)
     path.mkdir(parents=True, exist_ok=True)
 
 def local_run():
+    logger.info("local_run:: Starting local run of experiment")
     with open(f"src/config/experiment_two_layer_etf.json", 'r') as f:
         config = json.load(f)
 

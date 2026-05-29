@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 from abc import ABC, abstractmethod
 
 from models.signals_config import SignalsConfig
@@ -9,6 +10,7 @@ class Signals(ABC):
     def __init__(self, 
                  market_state: MarketState, 
                  signals_config: SignalsConfig):
+        self.logger = logging.getLogger(__name__)
         self.market_state = market_state
         self.ann_factor = market_state.annual_trading_days
         self.signals_config = signals_config

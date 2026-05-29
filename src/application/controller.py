@@ -11,12 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from io import BytesIO
 import logging
+from utils.logging_config import setup_logging
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    filename="optimizer.log"
-)
+setup_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -33,14 +31,14 @@ app.add_middleware(
 
 @app.post("/run-experiment")
 def run_experiment(config: dict = Body(...)):
-    logging.info(f"Received experiment configuration: {config}")
+    logger.info(f"Received experiment configuration: {config}")
     runner = ExperimentRunner(config)
     experiment_results = runner.run_parallel()
     return experiment_results.to_dict()
 
 @app.post("/download")
 def download(body: ExperimentModel = Body(...)):
-    logging.info(f"Downloading backtest report for experiment ID: {body.experiment_id}")
+    logger.info(f"Downloading backtest report for experiment ID: {body.experiment_id}")
     experiment = Experiment(
         experiment_id=body.experiment_id,
         created_at=datetime.now(),
@@ -70,10 +68,12 @@ def download(body: ExperimentModel = Body(...)):
 # Both of these are future installments that rely on data storage and retrieval, which is not yet implemented. They will be used to load existing experiments and list all available experiments respectively.
 @app.post("/load-experiment")
 def load_experiment(config: dict):
+    logger.info(f"Loading experiment with configuration: {config}")
     return {"message": "This endpoint will load an experiment based on the provided configuration, but it is not yet implemented."}
 
 @app.post("/list-experiments")
 def list_experiments(config: dict) -> list:
+    logger.info(f"Listing experiments with configuration: {config}")
     load_experiments = []
     return load_experiments
 

@@ -1,5 +1,6 @@
 {
   "_description": "Monthly rebalance with 1m forward return labels. Standard academic cross-sectional momentum setup. Labels fully resolve before next trade. Lower turnover.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "tickers": [
       "^VIX",

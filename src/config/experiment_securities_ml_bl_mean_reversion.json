@@ -1,5 +1,6 @@
 {
   "_description": "ML scores feed BL mean reversion view. Compare view direction against momentum variant.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2000-01-01",
     "end_date": "2026-04-15",
