@@ -71,9 +71,12 @@ class BlackLittermanSignal(RiskReturnSignals):
         losers  = ranked <= quintile      # bottom 20%
         winners = ranked > n - quintile   # top 20%
 
-        P = self._determine_view_direction(ranked, winners, losers)
-        Q = np.array([expected_spread])
-        
+        if self.security_to_etf_map is not None:
+            P, Q = self._determine_etf_views(winners, losers, expected_spread)
+        else:
+            P = self._determine_view_direction(ranked, winners, losers)
+            Q = np.array([expected_spread])
+
         omega_diag = np.diag(self.tau * P @ sigma @ P.T)
         omega = np.diag(np.maximum(omega_diag, 1e-8))
         return P, Q, omega
@@ -115,12 +118,18 @@ class BlackLittermanSignal(RiskReturnSignals):
         return short_returns.rank(), self.black_litterman.get("reversion_view", 0.03)
     
     def _aggregate_to_etfs(self, security_scores: pd.Series) -> pd.Series:
+        """
+        Aggregates security-level scores to ETF-level by averaging the scores of the constituent securities
+        """
         etf_scores = {}
         for etf in self.investment_universe:
             constituents = [ s for s, mapped_etf in self.security_to_etf_map.items()
                             if mapped_etf == etf]
             if constituents and len(constituents) > 0:
-                score = security_scores[constituents].mean()
+                threshold = security_scores[constituents].quantile(0.80)
+                top_n_scores = security_scores[constituents][security_scores[constituents] > threshold].mean()
+                bottom_n_scores = security_scores[constituents][security_scores[constituents] <= threshold].mean()
+                score = top_n_scores - bottom_n_scores
                 if not pd.isna(score):
                     etf_scores[etf] = score
 
@@ -144,6 +153,8 @@ class BlackLittermanSignal(RiskReturnSignals):
         if winners.sum() == 0 or losers.sum() == 0:
             return P
         
+        if self.security_to_etf_map is not None:
+            pass
         for ticker in ranked_scores.index:
             idx = self.investment_universe.index(ticker)
             if losers.loc[ticker]:
@@ -151,3 +162,49 @@ class BlackLittermanSignal(RiskReturnSignals):
             elif winners.loc[ticker]:
                 P[0, idx] =  1 / winners.sum() if self.view_direction == "momentum" else -1 / winners.sum()
         return P
+    
+    def _determine_etf_views(self,
+                             winners: np.ndarray, 
+                             losers: np.ndarray,
+                             expected_spread: float):
+        """
+        When securities are mapped to ETFs, we construct views at the ETF level. 
+        For a momentum view, we expect ETFs with a majority of winning constituents 
+        to outperform those with a majority of losing constituents, and vice versa for mean reversion. 
+        The view matrix P is constructed accordingly, with each selected ETF equally weighted within 
+        the winners and losers groups.
+        """
+        n_investment = len(self.investment_universe)
+        if winners.sum() == 0 or losers.sum() == 0:
+            raise ValueError("Cannot determine views: \
+                             no winners or no losers identified based on the ranking method.")
+        
+        true_winners = np.where(winners)[0]
+        true_losers = np.where(losers)[0]
+
+        views_P = []
+        views_Q = []
+        if self.view_direction == "momentum":
+            for idx in true_losers:
+                row = np.zeros(n_investment)
+                row[idx] = -1
+                views_P.append(row)
+                views_Q.append(-expected_spread)
+            for idx in true_winners:
+                row = np.zeros(n_investment)
+                row[idx] = 1
+                views_P.append(row)
+                views_Q.append(expected_spread)
+        else:
+            for idx in true_losers:
+                row = np.zeros(n_investment)
+                row[idx] = 1
+                views_P.append(row)
+                views_Q.append(expected_spread)
+            for idx in true_winners:
+                row = np.zeros(n_investment)
+                row[idx] = -1
+                views_P.append(row)
+                views_Q.append(-expected_spread)
+
+        return np.array(views_P) , np.array(views_Q)

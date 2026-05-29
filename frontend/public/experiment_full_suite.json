@@ -1,5 +1,6 @@
 {
   "_description": "Full ablation suite. Four core signal configurations plus two horizon-alignment variants. Tests whether matching rebalance frequency to ML prediction horizon improves signal quality and strategy performance.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "tickers": [
       "^VIX",

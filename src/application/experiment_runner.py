@@ -107,7 +107,7 @@ class ExperimentRunner:
         self.config = config
         self.max_workers = min(8, multiprocessing.cpu_count())
         self.max_workers = 4
-
+ 
     def run(self) -> Experiment:
         market_store_config = self._build_market_store_config()
         market_store = self._build_market_store(market_store_config)
@@ -116,7 +116,7 @@ class ExperimentRunner:
             logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
             run = self._run_strategy(strategy_cfg, market_store, market_store_config)
             experiment.add_run(run)
-        self._save_results(experiment)
+        # self._save_results(experiment)
         return experiment
     
     def run_parallel(self) -> Experiment:
@@ -136,7 +136,7 @@ class ExperimentRunner:
                 run = future.result()
                 experiment.add_run(run)
 
-        self._save_results(experiment)
+        # self._save_results(experiment)
         return experiment
     
     def _run_strategy(self, 
@@ -212,7 +212,7 @@ class ExperimentRunner:
         logger.info(f"Saving experiment results for experiment ID: {experiment.experiment_id}")
         self._save_experiment(experiment)
         for run in experiment.strategy_runs:
-            self._save_strategy_run(run)
+            self._save_strategy_run(experiment.experiment_id, run)
 
     def _save_experiment(self, experiment: Experiment):
         logger.info(f"Saving experiment metadata for experiment ID: {experiment.experiment_id}")
@@ -222,11 +222,11 @@ class ExperimentRunner:
                 experiment
             )
 
-    def _save_strategy_run(self, run: StrategyRun):
+    def _save_strategy_run(self, experiment_id: str, run: StrategyRun):
         logger.info(f"Saving strategy run results for run ID: {run.run_id}")
         database_name = self.config.get("results_database", "research.duckdb")
         with StrategyResultsDataGateway(database_name) as strategy_gateway:
-            strategy_gateway.save_strategy_run(run)
+            strategy_gateway.save_strategy_run(experiment_id, run)
 
     def _build_market_store_config(self) -> MarketStoreConfig:
         logger.info("Building market store configuration")

@@ -1,10 +1,23 @@
 import pandas as pd
 import duckdb as db
 import json
+import dataclasses
 from dataclasses import asdict
 
 from models.experiment import Experiment
 from models.strategy_run import StrategyRun
+
+
+class _DataclassEncoder(json.JSONEncoder):
+    """Serialises dataclass instances that survive into JSON payloads."""
+    def default(self, obj):
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)
+        return super().default(obj)
+
+
+def _dumps(obj) -> str:
+    return json.dumps(obj, cls=_DataclassEncoder)
 
 class GatewayBase:
     def __init__(self, database_name: str):
@@ -19,6 +32,7 @@ class GatewayBase:
 class StrategyResultsDataGateway(GatewayBase):
     CREATE_TABLE = """
         CREATE TABLE IF NOT EXISTS strategy_runs (
+            experiment_id    VARCHAR,
             run_id          VARCHAR PRIMARY KEY,
             strategy_name   VARCHAR,
             strategy_config JSON,
@@ -28,8 +42,8 @@ class StrategyResultsDataGateway(GatewayBase):
 
     INSERT = """
         INSERT OR REPLACE INTO strategy_runs
-            (run_id, strategy_name, strategy_config, metadata)
-        VALUES (?, ?, ?, ?)
+            (experiment_id, run_id, strategy_name, strategy_config, metadata)
+        VALUES (?, ?, ?, ?, ?)
     """
 
     INSERT_IC_SUMMARY = """
@@ -47,13 +61,14 @@ class StrategyResultsDataGateway(GatewayBase):
     def _ensure_schema(self):
         self.conn.execute(self.CREATE_TABLE)
 
-    def save_strategy_run(self, run: StrategyRun):
+    def save_strategy_run(self, experiment_id: str, run: StrategyRun):
         d = run.to_dict()
         self.conn.execute(self.INSERT, [
+            experiment_id,
             d["run_id"],
             d["strategy_name"],
-            json.dumps(d["strategy_config"]),
-            json.dumps(d["metadata"]),
+            _dumps(d["strategy_config"]),
+            _dumps(d["metadata"]),
         ])
 
         self._save_backtest_summary(d)
@@ -128,6 +143,6 @@ class ExperimentMetaDataDataGateway(GatewayBase):
         self.conn.execute(self.INSERT, [
             d["experiment_id"],
             d["created_at"],
-            json.dumps(d["market_config"]),
+            _dumps(d["market_config"]),
         ])
     

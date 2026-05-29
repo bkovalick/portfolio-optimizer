@@ -1,5 +1,6 @@
 {
   "_description": "Fixed weight portfolio benchmark. Equal allocation across 7 diversified ETFs.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",

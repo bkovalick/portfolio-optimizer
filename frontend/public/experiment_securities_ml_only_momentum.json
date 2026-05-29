@@ -1,5 +1,6 @@
 {
   "_description": "Primary experiment. ML cross-sectional Ridge with extended feature set feeds BL momentum view. 130-stock sector-balanced universe.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",
