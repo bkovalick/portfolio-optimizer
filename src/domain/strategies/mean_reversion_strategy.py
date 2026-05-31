@@ -1,4 +1,4 @@
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import StrategyInterface
 from models.rebalance_problem import RebalanceProblem
 
 import numpy as np

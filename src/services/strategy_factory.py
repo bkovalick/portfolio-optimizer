@@ -4,14 +4,15 @@ from domain.strategies.mean_reversion_strategy import MeanReversionStrategy
 from domain.strategies.fixed_weight_strategy import FixedWeightStrategy
 from domain.strategies.equal_weight_strategy import EqualWeightStrategy
 from domain.strategies.systematic_strategy import SystematicStrategy
+from models.rebalance_problem import RebalanceProblem
 
-class IStrategyFactory(abc.ABC):
+class BaseStrategyFactory(abc.ABC):
     """Interface for optimizer factories."""
     @abc.abstractmethod
-    def create_strategy(self, rebalance_problem, optimizer):
-        pass
+    def create_strategy(self, rebalance_problem: RebalanceProblem, optimizer: str):
+        ...
 
-class StrategyFactory(IStrategyFactory):
+class StrategyFactory(BaseStrategyFactory):
 
     _strategies = {
         "mean_variance_strategy": MeanVarianceStrategy,
@@ -23,7 +24,9 @@ class StrategyFactory(IStrategyFactory):
 
     """Concrete implementation of an optimizer factory."""
     @classmethod
-    def create_strategy(cls, rebalance_problem, optimizer):
+    def create_strategy(cls, 
+                        rebalance_problem: RebalanceProblem, 
+                        optimizer: str):
         strategy = cls._strategies.get(rebalance_problem.strategy_type)
         if strategy:
             return strategy(rebalance_problem, optimizer)

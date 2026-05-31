@@ -64,12 +64,14 @@ class BlackLittermanSignal(RiskReturnSignals):
           Omega — (1 x 1) diagonal uncertainty matrix scaled by tau * P @ Sigma @ P'.
         """        
         ranked, expected_spread = self._get_ranked_scores()
-
         n = len(ranked)
         quintile = n // 5
+        losers  = ranked <= quintile
+        winners = ranked > n - quintile
 
-        losers  = ranked <= quintile      # bottom 20%
-        winners = ranked > n - quintile   # top 20%
+        if winners.sum() == 0 or losers.sum() == 0:
+            n_investment = len(self.investment_universe)
+            return np.zeros((1, n_investment)), np.array([0.0]), np.eye(1)
 
         if self.security_to_etf_map is not None:
             P, Q = self._determine_etf_views(winners, losers, expected_spread)
@@ -98,11 +100,7 @@ class BlackLittermanSignal(RiskReturnSignals):
     
     def _get_ranked_scores(self):
         """
-        Returns (ranked, expected_spread) used to construct the view matrix P.
-        If ML scores are available and enabled, assets are ranked by model score
-        and the ml_view_spread config value is used as the expected return spread.
-        Otherwise falls back to ranking by short-term price returns over
-        mean_reversion_window periods, using reversion_view as the spread.
+        Returns ranked scores used to construct the view matrix P.
         """
         if self.use_ml:
             scores = self.ml_state.scores
@@ -169,15 +167,10 @@ class BlackLittermanSignal(RiskReturnSignals):
                              expected_spread: float):
         """
         When securities are mapped to ETFs, we construct views at the ETF level. 
-        For a momentum view, we expect ETFs with a majority of winning constituents 
-        to outperform those with a majority of losing constituents, and vice versa for mean reversion. 
-        The view matrix P is constructed accordingly, with each selected ETF equally weighted within 
-        the winners and losers groups.
         """
         n_investment = len(self.investment_universe)
         if winners.sum() == 0 or losers.sum() == 0:
-            raise ValueError("Cannot determine views: \
-                             no winners or no losers identified based on the ranking method.")
+            return np.zeros((0, n_investment)), np.array([])
         
         true_winners = np.where(winners)[0]
         true_losers = np.where(losers)[0]

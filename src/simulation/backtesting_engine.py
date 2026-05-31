@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from domain.portfolio.iportfolio import PortfolioInterface
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import StrategyInterface
 from domain.signals.risk_return_signals import RiskReturnSignals 
 from domain.signals.moving_average_signals import MovingAverageSignals
 from domain.signals.volatility_forecasting_signals import VolatilityForecastingSignals
@@ -103,7 +103,11 @@ class BacktestingEngine(BacktestingEngineInterface):
             if not self._is_rebalance_step(cursor):
                 continue
 
-            signals = self._build_signals(self.market_state, self.signals_config, prev_weights)
+            if rebalance_problem.security_to_etf_map is not None:
+                signals = self._build_signals(self.market_state, self.signals_config, initial_weights)
+            else:
+                signals = self._build_signals(self.market_state, self.signals_config, prev_weights)
+
             target_weights = self.strategy.rebalance(signals, prev_weights)
             self.portfolio.apply(target_weights, prev_weights, cursor)
             prev_weights = target_weights
