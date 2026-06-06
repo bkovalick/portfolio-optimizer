@@ -1,11 +1,11 @@
-from domain.strategies.base_strategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from models.rebalance_problem import RebalanceProblem
 from domain.optimizers.optimizer import PortfolioRebalancer
 
 import numpy as np
 import pandas as pd
 
-class SystematicStrategy(StrategyInterface):
+class SystematicStrategy(BaseStrategy):
     """ 
     Systematic strategy that is entirely driven by configuration files. 
     The strategy logic is determined by the signal source specified in the rebalance problem, 

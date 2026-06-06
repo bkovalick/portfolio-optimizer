@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from domain.portfolio.iportfolio import PortfolioInterface
-from domain.strategies.base_strategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from domain.signals.risk_return_signals import RiskReturnSignals 
 from domain.signals.moving_average_signals import MovingAverageSignals
 from domain.signals.volatility_forecasting_signals import VolatilityForecastingSignals
@@ -30,7 +30,7 @@ class BacktestingEngine(BacktestingEngineInterface):
     """Concrete implementation of a backtesting engine."""
     def __init__(self, 
                  portfolio: PortfolioInterface, 
-                 strategy: StrategyInterface,
+                 strategy: BaseStrategy,
                  market_state: MarketState,
                  signals_config: SignalsConfig,
                  benchmark: pd.Series):

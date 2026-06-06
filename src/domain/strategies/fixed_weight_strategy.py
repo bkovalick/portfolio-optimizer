@@ -1,8 +1,8 @@
-from domain.strategies.base_strategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from models.rebalance_problem import RebalanceProblem
 import numpy as np
 
-class FixedWeightStrategy(StrategyInterface):
+class FixedWeightStrategy(BaseStrategy):
     """Fixed weight strategy.
 
     Always returns the initial_weights defined in the rebalance problem,

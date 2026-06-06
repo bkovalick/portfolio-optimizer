@@ -3,7 +3,7 @@ import numpy as np
 import cvxpy as cp
 import pandas as pd
 
-from domain.optimizers.ioptimizer import IOptimizer
+from domain.optimizers.base_optimizer import BaseOptimizer
 from models.rebalance_problem import RebalanceProblem
 from models.rebalance_solution import RebalanceSolution
 from domain.signals.signals import Signals
@@ -71,7 +71,7 @@ class PortfolioRebalancer:
 		objective = cp.Minimize(remaining_cash + tracking_error)
 		return objective
 
-class Optimizer(IOptimizer):
+class Optimizer(BaseOptimizer):
 	"""Optimizer using Cvxpy's minimize function."""
 	def __init__(self):
 		super().__init__()

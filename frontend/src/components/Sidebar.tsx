@@ -8,9 +8,12 @@ export default function Sidebar({ setExperiment, experiment }: any) {
   const [tab, setTab] = useState<Tab>("experiment")
   const [loading, setLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
-  const [startDate, setStartDate] = useState("2005-01-01")
-  const [endDate, setEndDate] = useState("2020-12-31")
-  const [transactionCost, setTransactionCost] = useState(0)
+  const [startDate, setStartDate] = useState("2000-01-01")
+  const [endDate, setEndDate] = useState(() => {
+    const d = getPreviousBusinessDay()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+  const [transactionCost, setTransactionCost] = useState(0.003)
   const [benchmark, setBenchmark] = useState("SPY")
   const [riskFreeRate, setRiskFreeRate] = useState(0.03)
   const [strategySet, setStrategySet] = useState<any>(null)
@@ -19,6 +22,19 @@ export default function Sidebar({ setExperiment, experiment }: any) {
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonText, setJsonText] = useState("")
   const [jsonError, setJsonError] = useState<string | null>(null)
+
+  function getPreviousBusinessDay(date: Date = new Date()): Date {
+    const dayOfWeek = date.getDay();
+    // Map dayOfWeek to subtract 1, 2, or 3 days
+    const daysToSubtract = {
+      0: 2, // Sunday -> Subtract 2 days (to Friday)
+      1: 3, // Monday -> Subtract 3 days (to Friday)
+    }[dayOfWeek] || 1; // Default: Subtract 1 day
+
+    const result = new Date(date);
+    result.setDate(date.getDate() - daysToSubtract);
+    return result;
+  }
 
   const handleUpload = async (e: any) => {
     const file = e.target.files[0]
@@ -30,8 +46,6 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     setEditedStrategies(JSON.parse(JSON.stringify(json.strategies)))
     setSelectedIdx(0)
     if (json.market_store_config) {
-      if (json.market_store_config.start_date) setStartDate(json.market_store_config.start_date)
-      if (json.market_store_config.end_date) setEndDate(json.market_store_config.end_date)
       if (json.market_store_config?.benchmark) setBenchmark(json.market_store_config.benchmark)
       if (json.market_store_config?.transaction_cost) setTransactionCost(json.market_store_config.transaction_cost)
       if (json.market_store_config?.risk_free_rate) setRiskFreeRate(json.market_store_config.risk_free_rate)

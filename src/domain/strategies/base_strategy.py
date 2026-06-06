@@ -4,7 +4,7 @@ from models.rebalance_problem import RebalanceProblem
 from domain.signals.signals import Signals
 from domain.optimizers.optimizer import Optimizer
 
-class StrategyInterface(abc.ABC):
+class BaseStrategy(abc.ABC):
     """Base interface for all portfolio strategies.
     """
     def __init__(self, rebalance_problem: RebalanceProblem, optimizer=None):

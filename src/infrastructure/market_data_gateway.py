@@ -23,6 +23,20 @@ class MarketDataGateway:
                 raise ValueError(f"Unknown source type: {data_source}")
 
     @staticmethod
+    def get_sector_data(tickers: list) -> dict:
+        sectors = {}
+        for ticker in tickers:
+            try:
+                ticker_data = yf.Ticker(ticker).info
+                sectors[ticker] = ticker_data.get("sector")
+            except Exception as e:
+                print(f"Could not fetch market cap data for {ticker}: {e}")
+                sectors[ticker] = 0
+                continue
+
+        return sectors
+    
+    @staticmethod
     def get_market_caps(tickers: list) -> dict:
         market_caps = {}
         for ticker in tickers:
@@ -83,6 +97,7 @@ class MarketDataStore:
             self._market_caps["CASH"] = 0
 
         self._etf_market_caps = MarketDataGateway.get_etf_market_caps(tickers)
+        self._sectors = MarketDataGateway.get_sector_data(tickers)
 
     @property
     def prices(self) -> pd.DataFrame:
@@ -95,3 +110,7 @@ class MarketDataStore:
     @property
     def etf_market_caps(self) -> pd.Series:
         return pd.Series(self._etf_market_caps).fillna(0)
+    
+    @property
+    def sectors(self) -> pd.Series:
+        return pd.Series(self._sectors).fillna("Unknown")

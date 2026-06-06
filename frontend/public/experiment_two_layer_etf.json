@@ -2,7 +2,7 @@
   "_description": "Two-layer ML+BL momentum experiment. Signal generation on ~420-stock sector-balanced universe. Portfolio construction on 14 ETFs (11 sector SPDRs + AGG + LQD + TLT). Security scores aggregated to ETF level via sector mapping before BL view construction.",
   "database_name": "research.duckdb",
   "market_store_config": {
-    "start_date": "2000-01-01",
+    "start_date": "2024-01-01",
     "end_date": "2026-05-28",
     "data_source": {
       "yfinance": null
@@ -1333,7 +1333,7 @@
           "tau": 0.05,
           "reversion_view": 0.03,
           "ml_view_spread": 0.03,
-          "view_direction": "mean_reversion"
+          "view_direction": "momentum"
         },
         "ml_signals_config": {
           "enabled": true,
@@ -1378,19 +1378,12 @@
         },
         "apply_max_return_objective": true,
         "apply_market_caps": false,
-        "strategy_rules": {
-          "vol_target": 0.15,
-          "vol_lookback_days": "1m",
-          "vol_max_leverage": 1.5
-        },
         "constraints": {
           "concentration_strength": 0,
-          "max_return": 0.25,
-          "risk_aversion": 2.5,
-          "optimizer_vol_constraint": 0.2,
+          "risk_aversion": 0.5,
           "turnover_limit": 0.5,
           "min_position_size": 0.0,
-          "max_position_size": 0.35,
+          "max_position_size": 0.50,
           "max_positions": 14,
           "asset_class_constraints": {
             "Equity": [
