@@ -1,5 +1,6 @@
 {
   "_description": "Equal weight portfolio benchmark. 1/N allocation across 10 diversified ETFs.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",
@@ -29,7 +30,7 @@
         "lookback_window_key": "1y",
         "market_frequency": "w",
         "cash_allocation": 0.0,
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "AGG",
           "GLD",
@@ -45,6 +46,7 @@
       "signals_config": {},
       "rebalance_problem": {
         "strategy_type": "ewp_strategy",
+        "apply_market_caps": false,
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly"
       }

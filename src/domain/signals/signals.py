@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 from abc import ABC, abstractmethod
 
 from models.signals_config import SignalsConfig
@@ -9,6 +10,7 @@ class Signals(ABC):
     def __init__(self, 
                  market_state: MarketState, 
                  signals_config: SignalsConfig):
+        self.logger = logging.getLogger(__name__)
         self.market_state = market_state
         self.ann_factor = market_state.annual_trading_days
         self.signals_config = signals_config
@@ -23,6 +25,9 @@ class Signals(ABC):
         lower_bound = r.quantile(self.windsor_percentiles["lower"])
         upper_bound = r.quantile(self.windsor_percentiles["upper"])
         return r.clip(lower=lower_bound, upper=upper_bound, axis = 1)
+    
+    def lookback_prices(self) -> pd.DataFrame:
+        return self.market_state.lookback_prices()
 
     @abstractmethod
     def mean_returns(self) -> np.ndarray: ...

@@ -2,7 +2,7 @@ numpy==1.26.4
 pandas==2.3.3
 scipy==1.12.0
 scikit-learn==1.4.2
-cvxpy==1.4.3
+cvxpy==1.5.0
 xgboost==2.0.3
 statsmodels==0.14.2
 yfinance
@@ -19,4 +19,6 @@ tqdm==4.66.2
 holidays==0.47
 six==1.16.0
 wrapt==1.16.0
-# arch
+arch
+highspy
+duckdb

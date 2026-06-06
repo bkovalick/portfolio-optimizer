@@ -1,5 +1,6 @@
 {
   "_description": "Monthly rebalance with 1m forward return labels. Standard academic cross-sectional momentum setup. Labels fully resolve before next trade. Lower turnover.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "tickers": [
       "^VIX",
@@ -153,7 +154,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "AKAM",
           "APH",
@@ -296,6 +297,7 @@
         "signal_source": "black_litterman",
         "rebalance_frequency": "monthly",
         "apply_max_return_objective": true,
+        "apply_market_caps": false,
         "strategy_rules": {
           "vol_target": 0.15,
           "vol_lookback_days": "1m",

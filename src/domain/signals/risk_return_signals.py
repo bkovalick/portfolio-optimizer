@@ -12,7 +12,8 @@ class RiskReturnSignals(Signals):
 
     def mean_returns(self) -> np.ndarray:
         lookback_returns = self.lookback_returns()
-        return lookback_returns.mean().values * self.ann_factor
+        mu = lookback_returns.mean().values * self.ann_factor
+        return np.nan_to_num(mu, nan=0.0)
 
     def covariance_matrix(self) -> np.ndarray:
         lookback_returns = self.lookback_returns().dropna()

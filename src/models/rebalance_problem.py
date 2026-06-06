@@ -38,7 +38,18 @@ class RebalanceProblem:
     @property
     def cash_allocation(self) -> float:
         return self._data.get("cash_allocation")
+
+    @property
+    def cash_index(self) -> int | None:
+        try:
+            return self.investment_universe.index("Cash")
+        except:
+            return None
     
+    @property
+    def has_cash(self) -> bool:
+        return self.cash_index is not None
+        
     @property
     def rebalance_frequency(self) -> str:
         return self._data.get("rebalance_frequency", "weekly")
@@ -81,15 +92,23 @@ class RebalanceProblem:
     
     @property
     def asset_class_map(self) -> dict:
-        return self._data.get("asset_class_map", {})
+        return self._data.get("asset_class_map", None)
     
     @property
     def sector_map(self) -> dict:
-        return self._data.get("sector_map", {})
+        return self._data.get("sector_map", None)
+
+    @property
+    def security_to_etf_map(self) -> dict:
+        return self._data.get("security_to_etf_map", None)
     
     @property
-    def tickers(self) -> dict:
-        return self._data.get("tickers", ["AAPL"])
+    def signal_universe(self) -> list:
+        return self._data.get("signal_universe") or self.investment_universe
+    
+    @property
+    def investment_universe(self) -> list:
+        return self._data.get("investment_universe", ["AAPL"])
     
     @property
     def optimizer_vol_constraint(self) -> float:
@@ -114,3 +133,11 @@ class RebalanceProblem:
     @property
     def transaction_cost(self) -> float:
         return self._data.get("transaction_cost", 0.0)
+    
+    @property
+    def starting_portfolio_value(self) -> float:
+        return self._data.get("starting_portfolio_value", 10000)
+    
+    @property
+    def cash_infusion(self) -> float:
+        return self._data.get("cash_infusion", 1000)

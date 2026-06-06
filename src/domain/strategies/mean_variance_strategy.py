@@ -1,9 +1,9 @@
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from models.rebalance_problem import RebalanceProblem
 
 import numpy as np
 
-class MeanVarianceStrategy(StrategyInterface):
+class MeanVarianceStrategy(BaseStrategy):
     """Mean-variance optimized strategy.
 
     Maximizes risk-adjusted return using the portfolio optimizer subject to

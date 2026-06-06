@@ -14,28 +14,36 @@ class BlackLittermanSignal(RiskReturnSignals):
                  ml_state: Optional[MLPredictorSignalsState],
                  current_weights: np.ndarray):
         super().__init__(market_state, signals_config)
-
         self.ml_state = ml_state
         self.ml_signals_config = self.signals_config.ml_signals_config
-        self.black_litterman = getattr(self.signals_config, "black_litterman", None)
-        self.tau = self.black_litterman.get("tau", 0.05)
+        self.security_to_etf_map = self.market_state.security_to_etf_map
+        self.investment_universe = self.market_state.investment_universe
         self.current_weights = current_weights
-        self.tau = self.black_litterman.get("tau", 0.05)
+        self.use_ml = (
+            self.ml_signals_config is not None
+            and self.ml_signals_config.enabled
+            and self.ml_state is not None
+            and self.ml_state.scores is not None
+        )         
+        bl = getattr(self.signals_config, "black_litterman", None) or {}
+        self.black_litterman = bl if bl else None
+        self.tau = bl.get("tau", 0.05)
+        self.delta = bl.get("delta", 2.5)
+        self.view_direction = bl.get("view_direction", "momentum")
 
     def mean_returns(self) -> np.ndarray:
         """
         Returns the Black-Litterman posterior mean return vector. If no
-        black_litterman config is present, falls back to the parent class
-        historical mean returns.
+        black_litterman config is present, falls back to the parent class (historical mean returns).
         """
         if self.black_litterman is None:
             return super().mean_returns()
-
+        
         sigma = self.covariance_matrix()
         pi = self._compute_equilibrium_returns(sigma)
         P, Q, omega = self._build_views(sigma)
         if not np.any(P):
-            return pi  # no valid view (too few assets); fall back to equilibrium returns
+            return pi
         return self._compute_posterior(pi, sigma, P, Q, omega)
     
     def _compute_equilibrium_returns(self, sigma):
@@ -44,10 +52,9 @@ class BlackLittermanSignal(RiskReturnSignals):
         optimization: pi = delta * Sigma * w, where delta is the risk aversion
         coefficient and w is the current portfolio weight vector.
         """
-        delta = self.black_litterman.get("delta", 2.5)
-        return delta * sigma @ self.current_weights
+        return self.delta * sigma @ self.current_weights
 
-    def _build_views(self, sigma):
+    def _build_views(self, sigma: np.ndarray):
         """
         Constructs the investor view matrices (P, Q, Omega) using a mean-reversion
         signal. Assets in the bottom quintile by recent returns are expected to
@@ -57,17 +64,23 @@ class BlackLittermanSignal(RiskReturnSignals):
           Omega — (1 x 1) diagonal uncertainty matrix scaled by tau * P @ Sigma @ P'.
         """        
         ranked, expected_spread = self._get_ranked_scores()
-
         n = len(ranked)
         quintile = n // 5
+        losers  = ranked <= quintile
+        winners = ranked > n - quintile
 
-        losers  = ranked <= quintile      # bottom 20%
-        winners = ranked > n - quintile   # top 20%
+        if winners.sum() == 0 or losers.sum() == 0:
+            n_investment = len(self.investment_universe)
+            return np.zeros((1, n_investment)), np.array([0.0]), np.eye(1)
 
-        P = self._determine_view_direction(n, winners, losers)
-        Q = np.array([expected_spread])
-        
-        omega = np.diag(np.diag(self.tau * P @ sigma @ P.T))
+        if self.security_to_etf_map is not None:
+            P, Q = self._determine_etf_views(winners, losers, expected_spread)
+        else:
+            P = self._determine_view_direction(ranked, winners, losers)
+            Q = np.array([expected_spread])
+
+        omega_diag = np.diag(self.tau * P @ sigma @ P.T)
+        omega = np.diag(np.maximum(omega_diag, 1e-8))
         return P, Q, omega
 
     def _compute_posterior(self, pi, sigma, P, Q, omega) -> np.ndarray:
@@ -87,27 +100,43 @@ class BlackLittermanSignal(RiskReturnSignals):
     
     def _get_ranked_scores(self):
         """
-        Returns (ranked, expected_spread) used to construct the view matrix P.
-        If ML scores are available and enabled, assets are ranked by model score
-        and the ml_view_spread config value is used as the expected return spread.
-        Otherwise falls back to ranking by short-term price returns over
-        mean_reversion_window periods, using reversion_view as the spread.
+        Returns ranked scores used to construct the view matrix P.
         """
-        bl = self.black_litterman
-        use_ml = (
-            self.ml_signals_config is not None
-            and self.ml_signals_config.enabled
-            and self.ml_state is not None
-            and self.ml_state.scores is not None
-        )
-        if use_ml:
-            return self.ml_state.scores.rank(), bl.get("ml_view_spread", 0.03)
+        if self.use_ml:
+            scores = self.ml_state.scores
+
+            if self.security_to_etf_map is not None:
+                etf_scores = self._aggregate_to_etfs(scores)
+                return etf_scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
+            
+            return scores.rank(), self.black_litterman.get("ml_view_spread", 0.03)
 
         window = getattr(self.signals_config, "mean_reversion_window", 4)
         short_returns = self.market_state.lookback_prices().pct_change(window, fill_method=None).iloc[-1]
-        return short_returns.rank(), bl.get("reversion_view", 0.03)
+        return short_returns.rank(), self.black_litterman.get("reversion_view", 0.03)
     
-    def _determine_view_direction(self, n: int, winners, losers):
+    def _aggregate_to_etfs(self, security_scores: pd.Series) -> pd.Series:
+        """
+        Aggregates security-level scores to ETF-level by averaging the scores of the constituent securities
+        """
+        etf_scores = {}
+        for etf in self.investment_universe:
+            constituents = [ s for s, mapped_etf in self.security_to_etf_map.items()
+                            if mapped_etf == etf]
+            if constituents and len(constituents) > 0:
+                threshold = security_scores[constituents].quantile(0.80)
+                top_n_scores = security_scores[constituents][security_scores[constituents] > threshold].mean()
+                bottom_n_scores = security_scores[constituents][security_scores[constituents] <= threshold].mean()
+                score = top_n_scores - bottom_n_scores
+                if not pd.isna(score):
+                    etf_scores[etf] = score
+
+        return pd.Series(etf_scores)
+    
+    def _determine_view_direction(self, 
+                                  ranked_scores: pd.Series, 
+                                  winners: np.ndarray, 
+                                  losers: np.ndarray) -> np.ndarray:
         """
         Builds the (1 x N) pick matrix P encoding a single long/short relative
         view based on the configured view_direction:
@@ -116,17 +145,59 @@ class BlackLittermanSignal(RiskReturnSignals):
         Each leg is equally weighted and normalised so the row sums to zero.
         Defaults to mean_reversion if view_direction is unrecognised.
         """
-        P = np.zeros((1, n))
+        n_investment = len(self.investment_universe)
+        P = np.zeros((1, n_investment))
 
         if winners.sum() == 0 or losers.sum() == 0:
-            return P  # too few assets to form a valid view; express no view
-
-        view_direction = self.black_litterman.get("view_direction", "momentum")
-        if view_direction == "momentum":
-            P[0, winners] =  1 / winners.sum()  # long winners equally
-            P[0, losers]  = -1 / losers.sum()   # short losers equally
-        else:  # "mean_reversion" or unrecognised
-            P[0, losers]  =  1 / losers.sum()   # long losers equally
-            P[0, winners] = -1 / winners.sum()  # short winners equally
-
+            return P
+        
+        if self.security_to_etf_map is not None:
+            pass
+        for ticker in ranked_scores.index:
+            idx = self.investment_universe.index(ticker)
+            if losers.loc[ticker]:
+                P[0, idx]  = -1 / losers.sum() if self.view_direction == "momentum" else 1 / losers.sum()
+            elif winners.loc[ticker]:
+                P[0, idx] =  1 / winners.sum() if self.view_direction == "momentum" else -1 / winners.sum()
         return P
+    
+    def _determine_etf_views(self,
+                             winners: np.ndarray, 
+                             losers: np.ndarray,
+                             expected_spread: float):
+        """
+        When securities are mapped to ETFs, we construct views at the ETF level. 
+        """
+        n_investment = len(self.investment_universe)
+        if winners.sum() == 0 or losers.sum() == 0:
+            return np.zeros((0, n_investment)), np.array([])
+        
+        true_winners = np.where(winners)[0]
+        true_losers = np.where(losers)[0]
+
+        views_P = []
+        views_Q = []
+        if self.view_direction == "momentum":
+            for idx in true_losers:
+                row = np.zeros(n_investment)
+                row[idx] = -1
+                views_P.append(row)
+                views_Q.append(-expected_spread)
+            for idx in true_winners:
+                row = np.zeros(n_investment)
+                row[idx] = 1
+                views_P.append(row)
+                views_Q.append(expected_spread)
+        else:
+            for idx in true_losers:
+                row = np.zeros(n_investment)
+                row[idx] = 1
+                views_P.append(row)
+                views_Q.append(expected_spread)
+            for idx in true_winners:
+                row = np.zeros(n_investment)
+                row[idx] = -1
+                views_P.append(row)
+                views_Q.append(-expected_spread)
+
+        return np.array(views_P) , np.array(views_Q)

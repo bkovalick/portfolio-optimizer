@@ -1,8 +1,8 @@
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from models.rebalance_problem import RebalanceProblem
 import numpy as np
 
-class EqualWeightStrategy(StrategyInterface):
+class EqualWeightStrategy(BaseStrategy):
     """Equal weight strategy.
 
     Allocates 1/N weight to each asset regardless of signals or market

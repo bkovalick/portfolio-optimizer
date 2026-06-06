@@ -1,21 +1,18 @@
-import abc
+import numpy as np
 from domain.optimizers.optimizer import Optimizer
-from domain.optimizers.ioptimizer import IOptimizer
+from domain.optimizers.base_optimizer import BaseOptimizer
+from models.rebalance_problem import RebalanceProblem
 
-class IOptimizerFactory(abc.ABC):
-    """Interface for optimizer factories."""
-    @abc.abstractmethod
-    def create_optimizer(self, program_type):
-        pass
-
-class FixedWeightOptimizer(IOptimizer):
+class FixedWeightOptimizer(BaseOptimizer):
     def __init__(self):
         super().__init__()
 
-    def optimize(self, rebalance_problem, current_weights=None):
+    def optimize(self, 
+                 rebalance_problem: RebalanceProblem, 
+                 current_weights: np.ndarray = None):
         return current_weights
 
-class OptimizerFactory(IOptimizerFactory):
+class OptimizerFactory:
 
     _optimizers = {
         "portfolio_optimizer": Optimizer,

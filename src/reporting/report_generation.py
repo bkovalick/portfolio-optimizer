@@ -1,9 +1,6 @@
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
-import numpy as np
-from datetime import datetime
-from pathlib import Path
 from io import BytesIO
 from models.experiment import Experiment
 

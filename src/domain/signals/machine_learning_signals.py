@@ -1,5 +1,5 @@
 from domain.signals.risk_return_signals import RiskReturnSignals
-from domain.machine_learning.isignal_model import ISignalModel
+from domain.machine_learning.return_predictor import ReturnPredictor
 from domain.machine_learning.feature_builder import FeatureBuilder
 from models.signals_config import SignalsConfig
 from models.machine_learning_config import MachineLearningConfig
@@ -10,11 +10,14 @@ import numpy as np
 from datetime import datetime
 
 class MLPredictorSignalsState:
-    """Long-lived. Owns model training lifecycle."""
+    """
+       Holds the state of the machine learning predictor signals, including cached scores, 
+       training history, and forward returns.
+    """
     def __init__(self, 
                  ml_config: MachineLearningConfig, 
                  feature_builder: FeatureBuilder, 
-                 model: ISignalModel):
+                 model: ReturnPredictor):
         self.ml_config = ml_config
         self.feature_builder = feature_builder
         self.model = model
@@ -95,7 +98,7 @@ class MLPredictorSignalsState:
             )
     
     @property
-    def scores(self):
+    def scores(self) -> pd.Series:
         if self.cached_scores is None:
             return None
 
@@ -107,18 +110,18 @@ class MLPredictorSignal(RiskReturnSignals):
                  market_state: MarketState, 
                  signals_cfg: SignalsConfig,
                  ml_config: MachineLearningConfig,
-                 state: MLPredictorSignalsState):
+                 predictor_state: MLPredictorSignalsState):
         super().__init__(market_state, signals_cfg)
 
         self.ml_config = ml_config
-        self.state = state
+        self.predictor_state = predictor_state
 
     def mean_returns(self):
         if not self.ml_config.enabled:
             return super().mean_returns()
-        if self.state.scores is None:
+        if self.predictor_state.scores is None:
             return super().mean_returns()
-        scores = self.state.scores.to_numpy(dtype=float)
+        scores = self.predictor_state.scores.to_numpy(dtype=float)
         if np.isnan(scores).any():
             fallback = super().mean_returns()
             nan_mask = np.isnan(scores)

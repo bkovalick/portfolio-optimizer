@@ -1,5 +1,6 @@
 {
   "_description": "ML+BL momentum experiment on 100-stock sector-balanced universe. Trimmed version of full_universe config for faster iteration.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-04-02",
@@ -123,7 +124,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "ACN",
           "APH",
           "ADI",
@@ -266,9 +267,12 @@
         }
       },
       "rebalance_problem": {
+        "starting_portfolio_value": 100000,
+        "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
         "apply_max_return_objective": true,
+        "apply_market_caps": false,
         "strategy_rules": {
           "vol_target": 0.15,
           "vol_lookback_days": "1m",

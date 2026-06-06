@@ -1,8 +1,9 @@
 {
   "_description": "ML scores feed BL mean reversion view. Compare view direction against momentum variant.",
+  "database_name": "research.duckdb",
   "market_store_config": {
-    "start_date": "2005-01-01",
-    "end_date": "2026-02-19",
+    "start_date": "2000-01-01",
+    "end_date": "2026-04-15",
     "data_source": {
       "yfinance": null
     },
@@ -176,7 +177,271 @@
   },
   "strategies": [
     {
-      "name": "securities_ml_bl_mean_reversion",
+      "name": "ml_bl_mean_reversion_ridge",
+      "market_state_config": {
+        "lookback_window_key": "1y",
+        "market_frequency": "d",
+        "cash_allocation": 0.005,
+        "exogenous_tickers": [
+          "^VIX"
+        ],
+        "investment_universe": [
+          "AAPL",
+          "MSFT",
+          "NVDA",
+          "AVGO",
+          "CSCO",
+          "AMAT",
+          "ADI",
+          "ADSK",
+          "ADP",
+          "APH",
+          "CDNS",
+          "CTSH",
+          "ANET",
+          "ACN",
+          "AKAM",
+          "UNH",
+          "JNJ",
+          "ABT",
+          "TMO",
+          "DHR",
+          "ISRG",
+          "SYK",
+          "BSX",
+          "MDT",
+          "BMY",
+          "AMGN",
+          "BIIB",
+          "IDXX",
+          "HOLX",
+          "UHS",
+          "JPM",
+          "BAC",
+          "WFC",
+          "GS",
+          "MS",
+          "BLK",
+          "AXP",
+          "V",
+          "MA",
+          "CB",
+          "AON",
+          "TFC",
+          "ZION",
+          "AFL",
+          "AMP",
+          "AMZN",
+          "TSLA",
+          "HD",
+          "MCD",
+          "NKE",
+          "BKNG",
+          "CMG",
+          "DHI",
+          "DRI",
+          "SBUX",
+          "KMX",
+          "BBY",
+          "HON",
+          "UNP",
+          "BA",
+          "CAT",
+          "GE",
+          "LMT",
+          "RTX",
+          "DE",
+          "EMR",
+          "ETN",
+          "MMM",
+          "NOC",
+          "AME",
+          "CTAS",
+          "FDX",
+          "PG",
+          "KO",
+          "PEP",
+          "COST",
+          "WMT",
+          "CL",
+          "ADM",
+          "STZ",
+          "CPB",
+          "CAG",
+          "GOOGL",
+          "META",
+          "NFLX",
+          "CMCSA",
+          "T",
+          "VZ",
+          "BIDU",
+          "EA",
+          "CHTR",
+          "NWSA",
+          "XOM",
+          "CVX",
+          "COP",
+          "EOG",
+          "SLB",
+          "MPC",
+          "PSX",
+          "DVN",
+          "APA",
+          "BKR",
+          "NEE",
+          "DUK",
+          "SO",
+          "AEP",
+          "EXC",
+          "SRE",
+          "AWK",
+          "AEE",
+          "CMS",
+          "ATO",
+          "LIN",
+          "APD",
+          "SHW",
+          "NEM",
+          "ALB",
+          "NUE",
+          "BALL",
+          "AVY",
+          "AMCR",
+          "CE",
+          "PLD",
+          "AMT",
+          "EQIX",
+          "SPG",
+          "ARE",
+          "AVB",
+          "BXP",
+          "CBRE",
+          "AGG",
+          "LQD"
+        ]
+      },
+      "signals_config": {
+        "apply_winsorizing": true,
+        "windsor_percentiles": {
+          "lower": 0.05,
+          "upper": 0.95
+        },
+        "mean_reversion_window": 4,
+        "momentum_skip_periods": 4,
+        "black_litterman": {
+          "delta": 2.5,
+          "tau": 0.05,
+          "reversion_view": 0.03,
+          "ml_view_spread": 0.03,
+          "view_direction": "mean_reversion"
+        },
+        "ml_signals_config": {
+          "enabled": true,
+          "features_model": "cross_sectional_model",
+          "features": [
+              "vol_3m",
+              "reversal",
+              "mom_x_vol_regime",
+              "reversal_x_vol_regime",
+              "max_return",
+              "high_52w",
+              "idiosyncratic_vol"
+          ],
+          "signals_model": "ridge",
+          "training_window": "2y",
+          "horizon": "1m",
+          "alpha": 1.0,
+          "rebal_cadence": "1m",
+          "sample_stride": "1w",
+          "max_depth": 3,
+          "n_estimators": 100,
+          "learning_rate": 0.05
+        }
+      },
+      "rebalance_problem": {
+        "starting_portfolio_value": 100000,
+        "cash_infusion": 0,
+        "optimizer_type": "portfolio_optimizer",
+        "rebalance_frequency": "weekly",
+        "apply_max_return_objective": true,
+        "apply_market_caps": false,
+        "strategy_rules": {
+          "vol_target": 0.15,
+          "vol_lookback_days": "1m",
+          "vol_max_leverage": 1.5
+        },
+        "constraints": {
+          "concentration_strength": 1,
+          "max_return": 0.25,
+          "risk_aversion": 2.5,
+          "optimizer_vol_constraint": 0.2,
+          "turnover_limit": 0.3,
+          "min_position_size": 0.0,
+          "max_position_size": 0.1,
+          "max_positions": 60,
+          "asset_class_constraints": {
+            "Equity": [
+              0.75,
+              0.95
+            ],
+            "Fixed Income": [
+              0.03,
+              0.2
+            ]
+          },
+          "sector_constraints": {
+            "Information Technology": [
+              0.06,
+              0.3
+            ],
+            "Health Care": [
+              0.05,
+              0.2
+            ],
+            "Financials": [
+              0.05,
+              0.2
+            ],
+            "Consumer Discretionary": [
+              0.04,
+              0.15
+            ],
+            "Industrials": [
+              0.05,
+              0.18
+            ],
+            "Consumer Staples": [
+              0.03,
+              0.12
+            ],
+            "Communication Services": [
+              0.03,
+              0.14
+            ],
+            "Energy": [
+              0.02,
+              0.1
+            ],
+            "Utilities": [
+              0.02,
+              0.1
+            ],
+            "Materials": [
+              0.02,
+              0.1
+            ],
+            "Real Estate": [
+              0.02,
+              0.08
+            ]
+          }
+        },
+        "strategy_type": "systematic_strategy",
+        "signal_source": "black_litterman"
+      }
+    },
+{
+      "name": "ml_bl_mean_reversion_gbr",
       "market_state_config": {
         "lookback_window_key": "1y",
         "market_frequency": "d",
@@ -338,24 +603,23 @@
           "enabled": true,
           "features_model": "cross_sectional_model",
           "features": [
-            "mom_1m",
-            "mom_12m",
-            "vol_1m",
-            "vol_3m",
-            "reversal",
-            "mom_x_vol_regime",
-            "reversal_x_vol_regime",
-            "max_return",
-            "high_52w",
-            "beta_1m",
-            "beta_1y"
+              "vol_3m",
+              "reversal",
+              "mom_x_vol_regime",
+              "reversal_x_vol_regime",
+              "max_return",
+              "high_52w",
+              "idiosyncratic_vol"
           ],
-          "signals_model": "ridge",
+          "signals_model": "gradientboostingregressor",
           "training_window": "2y",
           "horizon": "1m",
           "alpha": 1.0,
           "rebal_cadence": "1m",
-          "sample_stride": "1w"
+          "sample_stride": "1w",
+          "max_depth": 3,
+          "n_estimators": 100,
+          "learning_rate": 0.05
         }
       },
       "rebalance_problem": {
@@ -436,6 +700,6 @@
         "strategy_type": "systematic_strategy",
         "signal_source": "black_litterman"
       }
-    }
+    }    
   ]
 }

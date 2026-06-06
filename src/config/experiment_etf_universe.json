@@ -1,8 +1,9 @@
 {
   "_description": "ETF-only universe. BL momentum \u2014 no ML. ETFs lack cross-sectional dispersion for ML. Control experiment.",
+  "database_name": "research.duckdb",
   "market_store_config": {
-    "start_date": "2005-01-01",
-    "end_date": "2026-02-19",
+    "start_date": "2000-01-01",
+    "end_date": "2026-05-29",
     "data_source": {
       "yfinance": null
     },
@@ -55,7 +56,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "IVW",
           "IWD",
@@ -110,6 +111,7 @@
         "signal_source": "black_litterman",
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
+        "apply_market_caps": false,
         "apply_max_return_objective": true,
         "strategy_rules": {
           "vol_target": 0.12,
@@ -154,7 +156,7 @@
         "market_frequency": "d",
         "cash_allocation": 0.005,
         "exogenous_tickers": [],
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "IVW",
           "IWD",
@@ -201,6 +203,7 @@
         "strategy_type": "mean_variance_strategy",
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
+        "apply_market_caps": false,
         "apply_max_return_objective": true,
         "constraints": {
           "concentration_strength": 1,

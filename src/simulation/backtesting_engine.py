@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from domain.portfolio.iportfolio import PortfolioInterface
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from domain.signals.risk_return_signals import RiskReturnSignals 
 from domain.signals.moving_average_signals import MovingAverageSignals
 from domain.signals.volatility_forecasting_signals import VolatilityForecastingSignals
@@ -30,7 +30,7 @@ class BacktestingEngine(BacktestingEngineInterface):
     """Concrete implementation of a backtesting engine."""
     def __init__(self, 
                  portfolio: PortfolioInterface, 
-                 strategy: StrategyInterface,
+                 strategy: BaseStrategy,
                  market_state: MarketState,
                  signals_config: SignalsConfig,
                  benchmark: pd.Series):
@@ -66,14 +66,14 @@ class BacktestingEngine(BacktestingEngineInterface):
         print("Running backtest...")
         start_time = time.time()
         self.rebalance_every = self._get_steps(rebalance_problem.rebalance_frequency)
-        tickers = rebalance_problem.tickers
+        tickers = rebalance_problem.investment_universe
         initial_weights = np.array([
             rebalance_problem.initial_weights.get(ticker, 0.0) 
             for ticker in tickers
         ])
         self.portfolio.initialize(
-            self.market_state.prices.index, 
-            self.market_state.prices.columns, 
+            self.market_state.investment_prices.index, 
+            self.market_state.investment_prices.columns, 
             initial_weights
         )
         
@@ -89,7 +89,7 @@ class BacktestingEngine(BacktestingEngineInterface):
                 current_year = date.year
                 print(f"Processing {current_year}...")
 
-            current_returns = self.market_state.returns.iloc[cursor]
+            current_returns = self.market_state.investment_returns.iloc[cursor]
 
             prev_weights = self.portfolio.drift(prev_weights, current_returns, cursor)
             if cursor < self.market_state.lookback_window:
@@ -103,7 +103,11 @@ class BacktestingEngine(BacktestingEngineInterface):
             if not self._is_rebalance_step(cursor):
                 continue
 
-            signals = self._build_signals(self.market_state, self.signals_config, prev_weights)
+            if rebalance_problem.security_to_etf_map is not None:
+                signals = self._build_signals(self.market_state, self.signals_config, initial_weights)
+            else:
+                signals = self._build_signals(self.market_state, self.signals_config, prev_weights)
+
             target_weights = self.strategy.rebalance(signals, prev_weights)
             self.portfolio.apply(target_weights, prev_weights, cursor)
             prev_weights = target_weights

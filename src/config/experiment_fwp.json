@@ -1,5 +1,6 @@
 {
   "_description": "Fixed weight portfolio benchmark. Equal allocation across 7 diversified ETFs.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",
@@ -26,7 +27,7 @@
         "lookback_window_key": "1y",
         "market_frequency": "w",
         "cash_allocation": 0.0,
-        "universe_tickers": [
+        "investment_universe": [
           "SPY",
           "AGG",
           "GLD",
@@ -40,6 +41,7 @@
       "rebalance_problem": {
         "strategy_type": "fwp_strategy",
         "optimizer_type": "portfolio_optimizer",
+        "apply_market_caps": false,
         "rebalance_frequency": "weekly",
         "initial_weights": {
           "SPY": 0.142857,

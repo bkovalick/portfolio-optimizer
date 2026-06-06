@@ -1,9 +1,9 @@
-from domain.strategies.istrategy import StrategyInterface
+from domain.strategies.base_strategy import BaseStrategy
 from models.rebalance_problem import RebalanceProblem
 
 import numpy as np
 
-class MeanReversionStrategy(StrategyInterface):
+class MeanReversionStrategy(BaseStrategy):
     """Mean reversion strategy.
 
     Generates signals based on price deviations from a moving average and

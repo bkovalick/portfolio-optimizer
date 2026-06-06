@@ -1,5 +1,6 @@
 {
   "_description": "Baseline. No BL, no ML. Raw mean-variance with Ledoit-Wolf covariance. Floor for signal comparison.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",
@@ -184,7 +185,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "AAPL",
           "MSFT",
           "NVDA",
@@ -329,9 +330,12 @@
         "momentum_skip_periods": 4
       },
       "rebalance_problem": {
+        "starting_portfolio_value": 100000,
+        "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
         "apply_max_return_objective": true,
+        "apply_market_caps": false,
         "constraints": {
           "concentration_strength": 1,
           "max_return": 0.25,

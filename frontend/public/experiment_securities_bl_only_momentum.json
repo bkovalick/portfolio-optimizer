@@ -1,5 +1,6 @@
 {
   "_description": "BL price-based momentum view, no ML. Isolates BL contribution over raw mean-variance.",
+  "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2005-01-01",
     "end_date": "2026-02-19",
@@ -184,7 +185,7 @@
         "exogenous_tickers": [
           "^VIX"
         ],
-        "universe_tickers": [
+        "investment_universe": [
           "AAPL",
           "MSFT",
           "NVDA",
@@ -336,9 +337,12 @@
         }
       },
       "rebalance_problem": {
+        "starting_portfolio_value": 100000,
+        "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
         "apply_max_return_objective": true,
+        "apply_market_caps": false,
         "strategy_rules": {
           "vol_target": 0.15,
           "vol_lookback_days": "1m",
