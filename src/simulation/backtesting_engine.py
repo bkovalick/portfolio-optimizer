@@ -11,6 +11,7 @@ from domain.signals.volatility_forecasting_signals import VolatilityForecastingS
 from domain.signals.mean_reversion_signals import MeanReversionSignals
 from domain.signals.momentum_signals import MomentumSignals
 from domain.signals.black_litterman_signal import BlackLittermanSignal
+from domain.signals.pairs_trading_signal import PairsTradingSignal
 from domain.machine_learning.cross_sectional_model import CrossSectionalModel 
 from domain.machine_learning.feature_builder import FeatureBuilder
 from domain.signals.machine_learning_signals import MLPredictorSignal, MLPredictorSignalsState
@@ -141,5 +142,6 @@ class BacktestingEngine(BacktestingEngineInterface):
             "volatility_forecast": VolatilityForecastingSignals(market_state, signals_config),
             "momentum": MomentumSignals(market_state, signals_config),
             "black_litterman": BlackLittermanSignal(market_state, signals_config, ml_state, current_weights),
-            "ml_cross_sectional": self.ml_signals if self.ml_signals_config is not None else None
-        } 
+            "ml_cross_sectional": self.ml_signals if self.ml_signals_config is not None else None,
+            "pairs_trading": PairsTradingSignal(market_state, signals_config, signals_config.pairs_trading)
+        }
