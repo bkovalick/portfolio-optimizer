@@ -143,5 +143,5 @@ class BacktestingEngine(BacktestingEngineInterface):
             "momentum": MomentumSignals(market_state, signals_config),
             "black_litterman": BlackLittermanSignal(market_state, signals_config, ml_state, current_weights),
             "ml_cross_sectional": self.ml_signals if self.ml_signals_config is not None else None,
-            "pairs_trading": PairsTradingSignal(market_state, signals_config, signals_config.pairs_trading)
+            "pairs_trading": PairsTradingSignal(market_state, signals_config.pairs_trading)
         }

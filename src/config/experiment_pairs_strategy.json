@@ -312,9 +312,11 @@
         },
         "pairs_trading": {
           "pairs_lookback_horizon": 20,
-          "cointegration_threshold": 0.70,
+          "cointegration_threshold": 0.05,
+          "correlation_filter": 0.70,
           "pairs_entry": 2,
-          "pairs_exit": 3.5
+          "pairs_exit": 0.5,
+          "pairs_stop_loss": 3.5
         }
       },
       "rebalance_problem": {
@@ -332,7 +334,7 @@
           "min_position_size": 0.0,
           "max_position_size": 0.1
         },
-        "strategy_type": "systematic_strategy",
+        "strategy_type": "pairs_trading_strategy",
         "signal_source": "pairs_trading"
       }
     }
