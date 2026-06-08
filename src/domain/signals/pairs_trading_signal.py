@@ -35,16 +35,23 @@ class PairsTradingSignal:
             state = self._determine_state(pair, zscores.iloc[-1], current_weights_dict)
             active_pairs.append(
                 {
-                    "pair": pair,
-                    "hedge_ratio": hedge_ratio,
-                    "spread": spread,
-                    "spread_vol": spread_vol,
-                    "zscore": zscores.iloc[-1],
-                    "state": state
+                    "AssetA": pair[0],
+                    "AssetB": pair[1],
+                    "HedgeRatio": hedge_ratio,
+                    "Spread": spread.iloc[-1],
+                    "SpreadVol": spread_vol.iloc[-1],
+                    "Zscore": zscores.iloc[-1],
+                    "State": state,
+                    "RawWeight": 1 / spread_vol.iloc[-1] if spread_vol.iloc[-1] > 0 else 0
                 }
             )
     
-        return pd.DataFrame(active_pairs)
+        active_pairs_df = pd.DataFrame(active_pairs)
+        if active_pairs_df.empty:
+            return active_pairs_df
+        
+        active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+        return active_pairs_df
 
     def _hedge_ratio(self, spread_a: pd.Series, spread_b: pd.Series) -> float:
         """Regress B to A"""
@@ -92,27 +99,27 @@ class PairsTradingSignal:
                          pair: tuple, 
                          zscore: float, 
                          cw_dict: dict) -> str:
-        # if existing position test if converged or not converging. Exit if one of those is happening otherwise do nothing
-        if pair[0] in cw_dict and pair[1] in cw_dict:
-            if abs(zscore) < self.pairs_exit:
+        """
+        Determine whether to enter a long or short position on the pair, 
+        or exit an existing position, based on the current Z-score and existing weights.
+        """
+        a_stock = pair[0]
+        b_stock = pair[1]
+
+        in_position = (a_stock in cw_dict and cw_dict[a_stock] != 0) and \
+                      (b_stock in cw_dict and cw_dict[b_stock] != 0)
+        if in_position:
+            if abs(zscore) < self.pairs_exit or abs(zscore) > self.pairs_stop_loss:
                 return "Exit"
-            elif abs(zscore) < self.pairs_stop_loss:
-                return "Exit"
+        
+            if cw_dict[a_stock] > 0:
+                return "HoldLong"
             else:
-                return "Hold"
-
+                return "HoldShort"
+        
         if zscore < -self.pairs_entry:
-            return "LongSpread"
-            # print("long stock a and short stock b")
+            return "EnterLong"
         elif zscore > self.pairs_entry:
-            return "ShortSpread"
-            # print("short stock a and long stock b")
-
-        # if zscore < -self.pairs_entry:
-        #     print("long stock a and short stock b")
-        # elif zscore > self.pairs_entry:
-        #     print("short stock a and long stock b")
-        # elif abs(zscore) < self.pairs_exit: # exit for profit
-        #     print("mean has converged, close position down to realize profit")
-        # elif abs(zscore) < self.pairs_stop_loss: # stop loss, exit at loss
-        #     print("mean has not converged, close position down and accept loss")
+            return "EnterShort"
+        else:
+            return "Flat"

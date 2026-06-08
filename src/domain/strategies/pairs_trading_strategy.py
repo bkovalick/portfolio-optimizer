@@ -9,6 +9,7 @@ class PairsTradingStrategy(BaseStrategy):
                  rebalance_problem: RebalanceProblem, 
                  optimizer=None):
         super().__init__(rebalance_problem, optimizer)
+        self.pairs_cache = []
 
     def rebalance(self, 
                   signals: dict, 
@@ -33,28 +34,29 @@ class PairsTradingStrategy(BaseStrategy):
 
         tickers = self.rebalance_problem.initial_weights.keys()
         current_weights_dict = dict(zip(tickers, current_weights))
-        pairs = active_signal.compute_trading_pairs(current_weights_dict)
-        if len(pairs) == 0:
+
+        active_pairs = active_signal.compute_trading_pairs(current_weights_dict)
+        if active_pairs.empty:
             return current_weights
 
-        # pairs should be weights ( if exiting then both are 0, if new then nonzero)
-        # pair should be ({'JPM': 0.1}, {'BAC': 0.1})
-        # spread_vol -> raw_weights = 1 / spread_vol (per pair)
-        # final_weights -> raw_weights / raw_weights.sum()
 
-        for pair in pairs:
-            print("hi")
-            # a_stock = pair[0][0]
-            # a_stock_weight = pair[0][0]
-            # b_stock = pair[1]
-            # a_stock_weight = pair[0][1]
+        new_weights = {ticker: 0.0 for ticker in tickers}
+        for pair in active_pairs.itertuples():
+            hedge_ratio = pair.HedgeRatio
+            if pair.State in {"EnterShort", "HoldShort"}:
+                asset_a_wght = -pair.FinalWeight
+                asset_b_wght = pair.FinalWeight * hedge_ratio
+            elif pair.State in {"EnterLong", "HoldLong"}:
+                asset_a_wght = pair.FinalWeight
+                asset_b_wght = -pair.FinalWeight * hedge_ratio
+            else:
+                continue
 
-            # if current_weights_dict[a_stock] == 0 and current_weights_dict[b_stock] == 0:
-            #     pass # new position
+            new_weights[pair.AssetA] += asset_a_wght
+            new_weights[pair.AssetB] += asset_b_wght
 
-            # if current_weights_dict[a_stock] > 0 and current_weights_dict[b_stock] > 0:
-            #     pass # position exists but the signal says we must exit
+            self.pairs_cache.append(pair)
 
-        return np.ndarray()
-
-
+        if sum(new_weights.values()) == 0:
+            return current_weights
+        return np.array(list(new_weights.values())) 

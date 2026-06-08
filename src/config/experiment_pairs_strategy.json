@@ -167,7 +167,7 @@
       "market_state_config": {
         "lookback_window_key": "1y",
         "market_frequency": "d",
-        "cash_allocation": 0.0,
+        "cash_allocation": 1.0,
         "exogenous_tickers": [
           "^VIX"
         ],

@@ -29,9 +29,8 @@ class SignalICDiagnostics(BaseSignalMonitor):
 
     def _compute_ic_statistics(self) -> pd.Series:
         """
-        Computes the Spearman rank correlation (IC) between the signal and forward returns for each date, 
-        then applies a rolling mean to smooth the series.
-        Returns a time series of IC values indexed by date.
+        Computes the Spearman rank correlation (IC) between the signal and 
+        forward returns for each date, then applies a rolling mean to smooth the series.
         """
         ic_values = []
         for date in self.signal.index:
