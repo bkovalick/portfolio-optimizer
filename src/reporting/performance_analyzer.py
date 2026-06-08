@@ -49,10 +49,11 @@ class PerformanceAnalyzer:
         num_periods = cumulative_returns.shape[0]
         years = num_periods / self.annual_trading_days
         annualized_return = wealth_factors.iloc[-1] ** (1 / years) - 1
+        arithmetic_annualized_return = portfolio_returns.mean() * self.annual_trading_days
         annualized_volatility = portfolio_returns.std() * np.sqrt(self.annual_trading_days)
 
         sharpe_ratio = (
-            (annualized_return - risk_free_rate) / annualized_volatility
+            (arithmetic_annualized_return - risk_free_rate) / annualized_volatility
             if annualized_volatility != 0 else 0.0
         )
 
@@ -85,7 +86,7 @@ class PerformanceAnalyzer:
             "return": annualized_return,
             "volatility": annualized_volatility,
             "sharpe_ratio": sharpe_ratio,
-            "sortino_ratio": self._calculate_sortino_ratio(annualized_return, portfolio_returns, risk_free_rate),
+            "sortino_ratio": self._calculate_sortino_ratio(arithmetic_annualized_return, portfolio_returns, risk_free_rate),
             "max_drawdown": max_drawdown,
             "max_drawdown_days": max_drawdown_days,
             "avg_drawdown": self._calculate_avg_drawdown(drawdown_returns),

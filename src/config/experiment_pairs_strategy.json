@@ -323,7 +323,7 @@
         "starting_portfolio_value": 100000,
         "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
-        "rebalance_frequency": "weekly",
+        "rebalance_frequency": "quarterly",
         "apply_max_return_objective": true,
         "apply_market_caps": false,
         "constraints": {
