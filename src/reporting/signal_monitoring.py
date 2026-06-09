@@ -7,13 +7,13 @@ from models.monitoring_stats import MonitoringStats
         
 class BaseSignalMonitor(abc.ABC):
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def forward_data(self):
         ...
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def scores(self):
         ...
 
@@ -93,9 +93,11 @@ class PairsICDiagnostics(BaseSignalMonitor):
         self.forward_spread = pd.DataFrame()
         self.zscores = pd.DataFrame()
     
+    @property
     def forward_data(self):
         return self.forward_spread
     
+    @property
     def scores(self):
         return -self.zscores
     
@@ -107,8 +109,10 @@ class LongOnlyICDiagnostics(BaseSignalMonitor):
         self.forward_returns = forward_returns
         self.signal = signal
 
+    @property
     def forward_data(self):
         return self.forward_returns
     
+    @property
     def scores(self):
         return self.signal
