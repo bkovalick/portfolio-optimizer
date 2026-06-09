@@ -13,6 +13,7 @@ from models.signals_config import SignalsConfig
 from models.rebalance_problem import RebalanceProblem
 from models.experiment import Experiment
 from models.monitoring_stats import MonitoringStats
+from models.backtest_run import BacktestRun
 from infrastructure.market_data_gateway import MarketDataStore
 from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway, StrategyResultsDataGateway
 
@@ -22,8 +23,6 @@ from datetime import datetime
 import pandas as pd
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
-from src.models.backtest_run import BacktestRun
 
 logger = logging.getLogger(__name__)
 

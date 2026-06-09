@@ -35,6 +35,7 @@ class PairsTradingSignal:
             state = self._determine_state(pair, zscores.iloc[-1], current_weights_dict)
             active_pairs.append(
                 {
+                    # "Date": self.market_state.current_date(),
                     "AssetA": pair[0],
                     "AssetB": pair[1],
                     "HedgeRatio": hedge_ratio,
@@ -51,6 +52,7 @@ class PairsTradingSignal:
             return active_pairs_df
         
         active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+        active_pairs_df.index = [self.market_state.current_date()] 
         return active_pairs_df
 
     def _hedge_ratio(self, spread_a: pd.Series, spread_b: pd.Series) -> float:
