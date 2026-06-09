@@ -1,7 +1,7 @@
 import abc
 import pandas as pd
 import numpy as np
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, pearsonr
 from scipy import stats
 from models.monitoring_stats import MonitoringStats
         
@@ -18,10 +18,10 @@ class BaseSignalMonitor(abc.ABC):
         ...
 
     def analyze(self) -> MonitoringStats:
-        ic_series = self._compute_ic_statistics()
+        ic_sp_series, ic_pe_series = self._compute_ic_statistics()
         return MonitoringStats(
-            ic_statistics=ic_series.to_dict(),
-            ic_summary=self._compute_ic_summary(ic_series)
+            ic_statistics={"spearman": ic_sp_series.to_dict(), "pearson": ic_pe_series.to_dict()},
+            ic_summary=self._compute_ic_summary(ic_sp_series)
         )
 
     def _compute_ic_statistics(self) -> pd.Series:
@@ -29,7 +29,8 @@ class BaseSignalMonitor(abc.ABC):
         Computes the Spearman rank correlation (IC) between the signal and 
         forward returns for each date, then applies a rolling mean to smooth the series.
         """
-        ic_values = []
+        ic_sp_values = []
+        ic_pe_values = []
         for date in self.scores.index:
             if date not in self.forward_data.index:
                 continue
@@ -40,14 +41,20 @@ class BaseSignalMonitor(abc.ABC):
             if len(common) < 5:
                 continue
 
-            ic, _ = spearmanr(scores.loc[common], fwd_data.loc[common])
-            ic_values.append((date, ic))
+            ic_sp, _ = spearmanr(scores.loc[common], fwd_data.loc[common])
+            ic_pe, _ = pearsonr(scores.loc[common], fwd_data.loc[common])
+            ic_sp_values.append((date, ic_sp))
+            ic_pe_values.append((date, ic_pe))
     
-        if not ic_values:
+        if not ic_sp_values:
             return pd.Series(dtype=float)
         
-        dates, ics = zip(*ic_values)
-        return pd.Series(ics, index=dates)
+        if not ic_pe_values:
+            return pd.Series(dtype=float)        
+        
+        dates, ics_spear = zip(*ic_sp_values)
+        dates, ics_pear = zip(*ic_pe_values)
+        return pd.Series(ics_spear, index=dates), pd.Series(ics_pear, index=dates)
 
     def _compute_ic_summary(self, ic_series: pd.Series) -> dict:
         """
