@@ -51,6 +51,7 @@ class RebalanceProblemConfig:
     strategy_type: str
     optimizer_type: str
     signal_source: str
+    monitoring_type: str
     rebalance_frequency: Optional[str]
     apply_market_caps: bool
     apply_max_return_objective: bool
@@ -67,6 +68,7 @@ class RebalanceProblemConfig:
             strategy_type=d.get("strategy_type"),
             optimizer_type=d.get("optimizer_type"),
             signal_source=d.get("signal_source", "risk_return"),
+            monitoring_type=d.get("monitoring_type", "long_only"),
             rebalance_frequency=d.get("rebalance_frequency", None),
             apply_market_caps=d.get("apply_market_caps", False),
             apply_max_return_objective=d.get("apply_max_return_objective", False),

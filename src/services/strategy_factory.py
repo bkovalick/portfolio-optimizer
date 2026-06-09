@@ -24,7 +24,7 @@ class StrategyFactory(BaseStrategyFactory):
         "pairs_trading_strategy": PairsTradingStrategy
     }
 
-    """Concrete implementation of an optimizer factory."""
+    """Concrete implementation of an strategy factory."""
     @classmethod
     def create_strategy(cls, 
                         rebalance_problem: RebalanceProblem, 

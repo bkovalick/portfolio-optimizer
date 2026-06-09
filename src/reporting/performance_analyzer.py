@@ -50,7 +50,7 @@ class PerformanceAnalyzer:
         years = num_periods / self.annual_trading_days
         annualized_return = wealth_factors.iloc[-1] ** (1 / years) - 1
         arithmetic_annualized_return = portfolio_returns.mean() * self.annual_trading_days
-        annualized_volatility = portfolio_returns.std() * np.sqrt(self.annual_trading_days)
+        annualized_volatility = portfolio_returns.std() * np.sqrt(self.annual_trading_days) 
 
         sharpe_ratio = (
             (arithmetic_annualized_return - risk_free_rate) / annualized_volatility

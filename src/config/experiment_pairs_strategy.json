@@ -323,7 +323,7 @@
         "starting_portfolio_value": 100000,
         "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
-        "rebalance_frequency": "quarterly",
+        "rebalance_frequency": "weekly",
         "apply_max_return_objective": true,
         "apply_market_caps": false,
         "constraints": {
@@ -335,7 +335,8 @@
           "max_position_size": 0.1
         },
         "strategy_type": "pairs_trading_strategy",
-        "signal_source": "pairs_trading"
+        "signal_source": "pairs_trading",
+        "monitoring_type": "pairs"
       }
     }
   ]

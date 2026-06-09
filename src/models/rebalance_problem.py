@@ -141,3 +141,7 @@ class RebalanceProblem:
     @property
     def cash_infusion(self) -> float:
         return self._data.get("cash_infusion", 1000)
+    
+    @property
+    def monitoring_type(self) -> str:
+        return self._data.get("monitoring_type", "long_only")

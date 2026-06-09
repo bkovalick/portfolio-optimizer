@@ -114,11 +114,7 @@ class BacktestingEngine(BacktestingEngineInterface):
             prev_weights = target_weights
 
         print(f"Backtest duration: {time.time() - start_time} seconds")
-        return BacktestRun(
-            portfolio=self.portfolio,
-            scores_history=self.ml_signals_state.scores_history if self.ml_signals_config is not None else {},
-            fwd_returns_history=self.ml_signals_state.fwd_returns_history if self.ml_signals_config is not None else {}
-        )
+        return self._build_backtest_run(rebalance_problem)
 
     def _is_rebalance_step(self, step):
         return step % self.rebalance_every == 0
@@ -145,3 +141,22 @@ class BacktestingEngine(BacktestingEngineInterface):
             "ml_cross_sectional": self.ml_signals if self.ml_signals_config is not None else None,
             "pairs_trading": PairsTradingSignal(market_state, signals_config.pairs_trading)
         }
+    
+    def _build_backtest_run(self, rebalance_problem: RebalanceProblem) -> BacktestRun:
+        if rebalance_problem.monitoring_type == "long_only":
+            scores_history = self.ml_signals_state.scores_history \
+                if self.ml_signals_config is not None else {}
+            fwd_returns_history = self.ml_signals_state.fwd_returns_history \
+                if self.ml_signals_config is not None else {}
+            return BacktestRun(
+                portfolio=self.portfolio,
+                fwd_history = fwd_returns_history,
+                scores_history = scores_history
+            )
+        elif rebalance_problem.monitoring_type == "pairs":
+            pairs_cache = self.strategy.pairs_cache \
+                if self.strategy is not None else {}
+            return BacktestRun(
+                portfolio=self.portfolio,
+                pairs_cache = pairs_cache
+            )
