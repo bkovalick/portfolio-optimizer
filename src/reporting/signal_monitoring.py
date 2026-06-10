@@ -91,14 +91,14 @@ class BaseSignalMonitor(abc.ABC):
             return np.nan
 
         half_life = np.log(0.5) / np.log(phi)
-        return half_life            
+        return half_life
 
 class PairsICDiagnostics(BaseSignalMonitor):
     def __init__(self, 
                  pairs_cache: pd.DataFrame):
         self.pairs_cache = pairs_cache
-        self.forward_spread = pd.DataFrame()
-        self.zscores = pd.DataFrame()
+        self.forward_spread = pairs_cache["RealizedReturn"]
+        self.zscores = pairs_cache["Zscore"]
     
     @property
     def forward_data(self):

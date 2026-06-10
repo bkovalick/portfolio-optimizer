@@ -28,15 +28,22 @@ class PairsTradingSignal:
         pairs = self._determine_pairs(self.prices)
         active_pairs = []
         for pair in pairs:
+            return_long = (self.prices[pair[0]].iloc[-1] / self.prices[pair[0]].iloc[-2]) - 1
+            return_short = (self.prices[pair[1]].iloc[-1] / self.prices[pair[1]].iloc[-2]) - 1
             hedge_ratio = self._hedge_ratio(self.prices[pair[0]], self.prices[pair[1]])
             spread = self._compute_spread(self.prices[pair[0]], self.prices[pair[1]], hedge_ratio)
             spread_vol = spread.diff().rolling(self.pairs_lookback_horizon).std()
             zscores = self._compute_zscores(spread)
+            if pd.isna(zscores.iloc[-1]) or pd.isna(spread_vol.iloc[-1]):
+                continue
             state = self._determine_state(pair, zscores.iloc[-1], current_weights_dict)
             active_pairs.append(
                 {
                     "AssetA": pair[0],
                     "AssetB": pair[1],
+                    "ReturnLong": return_long,
+                    "ReturnShort": return_short,
+                    "RealizedReturn": return_long - hedge_ratio * return_short,
                     "HedgeRatio": hedge_ratio,
                     "Spread": spread.iloc[-1],
                     "SpreadVol": spread_vol.iloc[-1],
