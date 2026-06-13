@@ -34,7 +34,7 @@ class BaseSignalMonitor(abc.ABC):
         for date in self.scores.index:
             if date not in self.forward_data.index:
                 continue
-
+            
             scores = self.scores.loc[date].dropna()
             fwd_data = self.forward_data.loc[date].dropna()
             common = scores.index.intersection(fwd_data.index)
@@ -43,14 +43,11 @@ class BaseSignalMonitor(abc.ABC):
 
             ic_sp, _ = spearmanr(scores.loc[common], fwd_data.loc[common])
             ic_pe, _ = pearsonr(scores.loc[common], fwd_data.loc[common])
-            ic_sp_values.append((date, ic_sp))
-            ic_pe_values.append((date, ic_pe))
+            ic_sp_values.append((date, float(ic_sp)))
+            ic_pe_values.append((date, float(ic_pe)))
     
         if not ic_sp_values:
-            return pd.Series(dtype=float)
-        
-        if not ic_pe_values:
-            return pd.Series(dtype=float)        
+            return pd.Series(dtype=float), pd.Series(dtype=float)
         
         dates, ics_spear = zip(*ic_sp_values)
         dates, ics_pear = zip(*ic_pe_values)
@@ -96,9 +93,9 @@ class BaseSignalMonitor(abc.ABC):
 class PairsICDiagnostics(BaseSignalMonitor):
     def __init__(self, 
                  pairs_cache: pd.DataFrame):
-        self.pairs_cache = pairs_cache
-        self.forward_spread = pairs_cache["RealizedReturn"]
-        self.zscores = pairs_cache["Zscore"]
+        pairs_cache = pairs_cache.copy()
+        self.zscores = pairs_cache.groupby([pairs_cache.index, 'Pair'])['Zscore'].first().unstack('Pair')
+        self.forward_spread = pairs_cache.groupby([pairs_cache.index, 'Pair'])['RealizedReturn'].first().unstack('Pair')
     
     @property
     def forward_data(self):

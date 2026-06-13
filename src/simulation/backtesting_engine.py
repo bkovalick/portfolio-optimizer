@@ -131,6 +131,9 @@ class BacktestingEngine(BacktestingEngineInterface):
             return {}
         
         ml_state = getattr(self, "ml_signals_state", None)
+        pairs_signal = PairsTradingSignal(market_state, signals_config.pairs_trading) \
+            if signals_config.pairs_trading is not None else None
+
         return {
             "risk_return": RiskReturnSignals(market_state, signals_config),
             "mean_reversion": MeanReversionSignals(market_state, signals_config),
@@ -139,24 +142,22 @@ class BacktestingEngine(BacktestingEngineInterface):
             "momentum": MomentumSignals(market_state, signals_config),
             "black_litterman": BlackLittermanSignal(market_state, signals_config, ml_state, current_weights),
             "ml_cross_sectional": self.ml_signals if self.ml_signals_config is not None else None,
-            "pairs_trading": PairsTradingSignal(market_state, signals_config.pairs_trading)
+            "pairs_trading": pairs_signal
         }
     
     def _build_backtest_run(self, rebalance_problem: RebalanceProblem) -> BacktestRun:
-        if rebalance_problem.monitoring_type == "long_only":
-            scores_history = self.ml_signals_state.scores_history \
-                if self.ml_signals_config is not None else {}
-            fwd_returns_history = self.ml_signals_state.fwd_returns_history \
-                if self.ml_signals_config is not None else {}
+        if hasattr(self.strategy, "pairs_cache") and rebalance_problem.monitoring_type == "pairs":
+            pairs_cache = self.strategy.pairs_cache
             return BacktestRun(
                 portfolio=self.portfolio,
-                fwd_history = fwd_returns_history,
-                scores_history = scores_history
+                pairs_cache=pairs_cache
             )
-        elif rebalance_problem.monitoring_type == "pairs":
-            pairs_cache = self.strategy.pairs_cache \
-                if self.strategy is not None else {}
-            return BacktestRun(
-                portfolio=self.portfolio,
-                pairs_cache = pairs_cache
-            )
+
+        ml_signals_state = getattr(self, "ml_signals_state", None)
+        scores_history = ml_signals_state.scores_history if ml_signals_state is not None else None
+        fwd_returns_history = ml_signals_state.fwd_returns_history if ml_signals_state is not None else None
+        return BacktestRun(
+            portfolio=self.portfolio,
+            fwd_history=fwd_returns_history,
+            scores_history=scores_history
+        )
