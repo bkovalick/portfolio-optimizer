@@ -59,7 +59,10 @@ class PairsTradingSignal:
         if active_pairs_df.empty:
             return active_pairs_df
         
-        active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+        if active_pairs_df["RawWeight"].sum() == 0:
+            active_pairs_df["FinalWeight"] = 0
+        else:
+            active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
         return active_pairs_df
 
     def _hedge_ratio(self, spread_a: pd.Series, spread_b: pd.Series) -> float:

@@ -29,7 +29,7 @@ class PairsTradingStrategy(BaseStrategy):
     def _run_pairs_strategy(self, 
                             current_weights: np.ndarray,
                             active_signal: PairsTradingSignal) -> np.ndarray:
-        if type(active_signal) is not PairsTradingSignal:
+        if not isinstance(active_signal, PairsTradingSignal):
             raise ValueError("Active signal must be of type PairsTradingSignal")
 
         tickers = self.rebalance_problem.initial_weights.keys()
