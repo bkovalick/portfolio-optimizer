@@ -314,12 +314,25 @@ class ExperimentRunner:
         scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
         fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
         pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
+
         if rebalance_problem.monitoring_type == "long_only":
+            if scores_history_df is None or scores_history_df.empty:
+                logger.warning("Scores history is empty or None. Skipping monitoring stats computation.")
+                return None
+
+            if fwd_df is None or fwd_df.empty:
+                logger.warning("Forward returns history is empty or None. Skipping monitoring stats computation.")
+                return None
+            
             monitor = monitor_ref(
                 fwd_df,
                 scores_history_df
             )
         elif rebalance_problem.monitoring_type == "pairs":
+            if pairs_cache_df is None or pairs_cache_df.empty:
+                logger.warning("Pairs cache is empty or None. Skipping monitoring stats computation.")
+                return None
+                
             monitor = monitor_ref(
                 pairs_cache_df
             )

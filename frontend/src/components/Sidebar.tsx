@@ -230,6 +230,8 @@ export default function Sidebar({ setExperiment, experiment }: any) {
         </Section>
 
                   <Section title="Signals">
+                    {currentStrategy ? (
+                    <>
                     <Row label="Signal">
                       <select
                         style={inputStyle}
@@ -400,6 +402,10 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                           </div>
                         )}
                       </>
+                    )}
+                    </>
+                    ) : (
+                      <div style={emptyState}>Load a strategy set to configure signals.</div>
                     )}
                   </Section>
 

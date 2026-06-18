@@ -20,8 +20,9 @@ def create_folder_path(folder_name: str):
 
 def local_run():
     logger.info("local_run:: Starting local run of experiment")
-    with open(f"src/config/experiment_pairs_strategy.json", 'r') as f:
+    # with open(f"src/config/experiment_pairs_strategy.json", 'r') as f:
     # with open(f"src/config/experiment_etf_universe.json", 'r') as f:
+    with open(f"src/config/experiment_fwp.json", 'r') as f:
         config = json.load(f)
 
     config = config.copy()
