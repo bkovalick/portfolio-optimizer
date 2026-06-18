@@ -178,7 +178,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
   })()
 
   const rebalanceOptions = ["daily", "weekly", "monthly", "quarterly"]
-  const strategyTypes = ["mean_variance_strategy","mean_reversion_strategy","fwp_strategy","ewp_strategy"]
+  const strategyTypes = ["systematic_strategy","fwp_strategy","ewp_strategy", "pairs_trading_strategy"]
   const signalSourceOptions = [
     ["risk_return", "Risk / Return"],
     ["mean_reversion", "Mean Reversion"],
@@ -258,14 +258,14 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                         <Row label="Lower %">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy.signals_config.windsor_percentiles?.lower ?? 0.05}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.lower ?? 0.05}
                             onChange={(e) => updateField(["signals_config", "windsor_percentiles", "lower"], Number(e.target.value))}
                           />
                         </Row>
                         <Row label="Upper %">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy.signals_config.windsor_percentiles?.upper ?? 0.95}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.upper ?? 0.95}
                             onChange={(e) => updateField(["signals_config", "windsor_percentiles", "upper"], Number(e.target.value))}
                           />
                         </Row>
@@ -319,35 +319,35 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                           <div style={blBlock}>
                             <Row label="Training">
                               <select style={inputStyle}
-                                value={currentStrategy.signals_config.ml_signals_config.training_window ?? "2y"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.training_window ?? "2y"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "training_window"], e.target.value)}>
                                 {["6m", "1y", "2y", "3y", "5y"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
                             <Row label="Horizon">
                               <select style={inputStyle}
-                                value={currentStrategy.signals_config.ml_signals_config.horizon ?? "1m"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.horizon ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "horizon"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
                             <Row label="Rebal Cadence">
                               <select style={inputStyle}
-                                value={currentStrategy.signals_config.ml_signals_config.rebal_cadence ?? "1m"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "rebal_cadence"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
                             <Row label="Sample Stride">
                               <select style={inputStyle}
-                                value={currentStrategy.signals_config.ml_signals_config.sample_stride ?? "1w"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "sample_stride"], e.target.value)}>
                                 {["1d", "1w", "2w", "1m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
                             <Row label="Alpha">
                               <input type="number" step={0.1} style={inputStyle}
-                                value={currentStrategy.signals_config.ml_signals_config.alpha ?? 1.0}
+                                value={currentStrategy.signals_config?.ml_signals_config?.alpha ?? 1.0}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "alpha"], Number(e.target.value))} />
                             </Row>
                           </div>
@@ -385,13 +385,13 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                             ] as [string, string, number][]).map(([labelText, key, step]) => (
                               <Row key={key} label={labelText}>
                                 <input type="number" step={step} style={inputStyle}
-                                  value={currentStrategy.signals_config.black_litterman[key] ?? ""}
+                                  value={currentStrategy.signals_config?.black_litterman?.[key] ?? ""}
                                   onChange={(e) => updateField(["signals_config", "black_litterman", key], Number(e.target.value))} />
                               </Row>
                             ))}
                             <Row label="View Dir">
                               <select style={inputStyle}
-                                value={currentStrategy.signals_config.black_litterman.view_direction ?? "momentum"}
+                                value={currentStrategy.signals_config?.black_litterman?.view_direction ?? "momentum"}
                                 onChange={(e) => updateField(["signals_config", "black_litterman", "view_direction"], e.target.value)}>
                                 <option value="momentum">momentum</option>
                                 <option value="mean_reversion">mean_reversion</option>
@@ -624,9 +624,11 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   
                   <Section title="Strategy Type">
                     <Row label="Strategy">
-                      <input style={inputStyle} 
+                      <select style={inputStyle}
                         value={currentStrategy.rebalance_problem?.strategy_type ?? ""}
-                        onChange={(e) => updateField(["rebalance_problem", "strategy_type"], e.target.value)}/>                      
+                        onChange={(e) => updateField(["rebalance_problem", "strategy_type"], e.target.value)}>
+                        {strategyTypes.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
                     </Row>
                   </Section>
 
@@ -705,7 +707,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                         <Row key={key} label={labelText}>
                           <input type="number" step={0.01} style={inputStyle}
                             title={tooltip}
-                            value={currentStrategy.rebalance_problem.constraints[key] ?? ""}
+                            value={currentStrategy.rebalance_problem?.constraints?.[key] ?? ""}
                             onChange={(e) => updateField(["rebalance_problem", "constraints", key], Number(e.target.value))} />
                         </Row>
                       ))}

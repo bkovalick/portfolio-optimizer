@@ -41,7 +41,7 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
         raise ValueError("Error: Market state configuration must be present to run a backtest")
     return MarketStateConfig.from_dict(market_state_config)
 
-def compute_monitoring_stats(rebalance_problem: RebalanceProblem, run: BacktestRun) -> MonitoringStats:
+def compute_monitoring_stats(rebalance_problem: RebalanceProblem, run: BacktestRun) -> MonitoringStats | None:
     """
         Computes monitoring statistics based on the type of rebalance problem 
         and the results of the backtest run.
@@ -55,9 +55,9 @@ def compute_monitoring_stats(rebalance_problem: RebalanceProblem, run: BacktestR
         logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. Skipping monitoring stats computation.")
         return None
     
-    scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else pd.DataFrame()
-    fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else pd.DataFrame()
-    pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else pd.DataFrame()
+    scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
+    fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
+    pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
     if rebalance_problem.monitoring_type == "long_only":
         monitor = monitor_ref(
             fwd_df,
@@ -311,9 +311,9 @@ class ExperimentRunner:
             logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. Skipping monitoring stats computation.")
             return None
         
-        scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else pd.DataFrame()
-        fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else pd.DataFrame()
-        pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else pd.DataFrame()
+        scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
+        fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
+        pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
         if rebalance_problem.monitoring_type == "long_only":
             monitor = monitor_ref(
                 fwd_df,

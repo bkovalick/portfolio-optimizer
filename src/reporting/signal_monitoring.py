@@ -87,20 +87,21 @@ class PairsICDiagnostics(BaseSignalMonitor):
     def __init__(self, 
                  pairs_cache: pd.DataFrame):
         super().__init__(forward_data=None, scores=None)
-        self.pairs_cache = pairs_cache.copy()
-        self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
+    #     self.pairs_cache = pairs_cache.copy()
+    #     self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
 
-    def analyze(self) -> MonitoringStats:
-        clean = (
-            self.pairs_cache[["Zscore", "FwdReturn"]]
-            .replace([np.inf, -np.inf], np.nan)
-            .dropna()
-        )
-        ic_sp, p_value = spearmanr(-clean["Zscore"], clean["FwdReturn"])
-        return MonitoringStats(
-            ic_statistics={"spearman": float(ic_sp)},
-            ic_summary={"ic": float(ic_sp), "p_value": float(p_value), "n_observations": len(clean)}
-        )
+    # def _compute_ic_statistics(self) -> pd.Series:
+    #     """
+    #     Computes the Spearman rank correlation (IC) between the signal and 
+    #     forward returns for each date, then applies a rolling mean to smooth the series.
+    #     """
+    #     clean = (
+    #         self.pairs_cache[["Zscore", "FwdReturn"]]
+    #         .replace([np.inf, -np.inf], np.nan)
+    #         .dropna()
+    #     )
+    #     ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
+    #     return pd.Series(ic_sp, dtype=float)
     
 class LongOnlyICDiagnostics(BaseSignalMonitor):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""

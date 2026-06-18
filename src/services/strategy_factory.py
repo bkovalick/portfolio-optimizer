@@ -1,6 +1,4 @@
 import abc
-from domain.strategies.mean_variance_strategy import MeanVarianceStrategy
-from domain.strategies.mean_reversion_strategy import MeanReversionStrategy
 from domain.strategies.fixed_weight_strategy import FixedWeightStrategy
 from domain.strategies.equal_weight_strategy import EqualWeightStrategy
 from domain.strategies.systematic_strategy import SystematicStrategy

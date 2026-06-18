@@ -255,7 +255,7 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
         </ResponsiveContainer>
       </div>
 
-      {runs.some((run: any) => run.monitoring_stats?.ic_statistics?.length > 0) && (<>
+      {runs.some((run: any) => getCachedIcSeries(run).ic_series.length > 0) &&  (<>
       {/* Header */}
       <div style={headerBar}>
         <span style={headerLabel}>Information Coefficient Analysis</span>
