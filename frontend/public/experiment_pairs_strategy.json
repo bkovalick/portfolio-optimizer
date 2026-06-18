@@ -1,9 +1,9 @@
 {
-  "_description": "Baseline. No BL, no ML. Raw mean-variance with Ledoit-Wolf covariance. Floor for signal comparison.",
+  "_description": "Run a basic Pairs Trading Strategy",
   "database_name": "research.duckdb",
   "market_store_config": {
-    "start_date": "2005-01-01",
-    "end_date": "2026-02-19",
+    "start_date": "2023-01-01",
+    "end_date": "2026-06-05",
     "data_source": {
       "yfinance": null
     },
@@ -143,25 +143,12 @@
       "AVB",
       "BXP",
       "CBRE",
-      "AGG",
-      "LQD",
       "IVW",
       "IWD",
       "IWM",
       "IJH",
       "EFA",
       "EEM",
-      "XLK",
-      "XLV",
-      "XLF",
-      "XLY",
-      "XLI",
-      "XLP",
-      "XLC",
-      "XLE",
-      "XLU",
-      "XLB",
-      "XLRE",
       "TLT",
       "IEF",
       "SHY",
@@ -170,18 +157,17 @@
       "EMB",
       "MBB",
       "MUB",
-      "GLD",
       "PDBC",
       "VNQ"
     ]
   },
   "strategies": [
     {
-      "name": "securities_mean_variance_only",
+      "name": "pairs_trading_strat",
       "market_state_config": {
         "lookback_window_key": "1y",
         "market_frequency": "d",
-        "cash_allocation": 0.005,
+        "cash_allocation": 1.0,
         "exogenous_tickers": [
           "^VIX"
         ],
@@ -315,9 +301,7 @@
           "ARE",
           "AVB",
           "BXP",
-          "CBRE",
-          "AGG",
-          "LQD"
+          "CBRE"
         ]
       },
       "signals_config": {
@@ -326,8 +310,14 @@
           "lower": 0.05,
           "upper": 0.95
         },
-        "mean_reversion_window": 4,
-        "momentum_skip_periods": 4
+        "pairs_trading": {
+          "pairs_lookback_horizon": 20,
+          "cointegration_threshold": 0.05,
+          "correlation_filter": 0.70,
+          "pairs_entry": 2,
+          "pairs_exit": 0.5,
+          "pairs_stop_loss": 3.5
+        }
       },
       "rebalance_problem": {
         "starting_portfolio_value": 100000,
@@ -338,72 +328,15 @@
         "apply_market_caps": false,
         "constraints": {
           "concentration_strength": 1,
-          "max_return": 0.25,
-          "risk_aversion": 2.5,
-          "optimizer_vol_constraint": 0.2,
-          "turnover_limit": 0.3,
+          "risk_aversion": 1.0,
+          "optimizer_vol_constraint": 1.0,
+          "turnover_limit": 1.0,
           "min_position_size": 0.0,
-          "max_position_size": 0.1,
-          "max_positions": 60,
-          "asset_class_constraints": {
-            "Equity": [
-              0.75,
-              0.95
-            ],
-            "Fixed Income": [
-              0.03,
-              0.2
-            ]
-          },
-          "sector_constraints": {
-            "Information Technology": [
-              0.06,
-              0.3
-            ],
-            "Health Care": [
-              0.05,
-              0.2
-            ],
-            "Financials": [
-              0.05,
-              0.2
-            ],
-            "Consumer Discretionary": [
-              0.04,
-              0.15
-            ],
-            "Industrials": [
-              0.05,
-              0.18
-            ],
-            "Consumer Staples": [
-              0.03,
-              0.12
-            ],
-            "Communication Services": [
-              0.03,
-              0.14
-            ],
-            "Energy": [
-              0.02,
-              0.1
-            ],
-            "Utilities": [
-              0.02,
-              0.1
-            ],
-            "Materials": [
-              0.02,
-              0.1
-            ],
-            "Real Estate": [
-              0.02,
-              0.08
-            ]
-          }
+          "max_position_size": 0.1
         },
-        "strategy_type": "systematic_strategy",
-        "signal_source": "risk_return"
+        "strategy_type": "pairs_trading_strategy",
+        "signal_source": "pairs_trading",
+        "monitoring_type": "pairs"
       }
     }
   ]

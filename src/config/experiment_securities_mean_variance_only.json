@@ -402,7 +402,7 @@
             ]
           }
         },
-        "strategy_type": "mean_variance_strategy",
+        "strategy_type": "systematic_strategy",
         "signal_source": "risk_return"
       }
     }

@@ -16,8 +16,6 @@ class BaseStrategyFactory(abc.ABC):
 class StrategyFactory(BaseStrategyFactory):
 
     _strategies = {
-        "mean_variance_strategy": MeanVarianceStrategy,
-        "mean_reversion_strategy": MeanReversionStrategy,
         "fwp_strategy": FixedWeightStrategy,
         "ewp_strategy": EqualWeightStrategy,
         "systematic_strategy": SystematicStrategy,
