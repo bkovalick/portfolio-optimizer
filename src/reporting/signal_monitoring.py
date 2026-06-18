@@ -1,26 +1,23 @@
 import abc
 import pandas as pd
 import numpy as np
-from scipy.stats import spearmanr, pearsonr
+from scipy.stats import spearmanr
 from scipy import stats
+
 from models.monitoring_stats import MonitoringStats
         
 class BaseSignalMonitor(abc.ABC):
 
-    @property
-    @abc.abstractmethod
-    def forward_data(self):
-        ...
-
-    @property
-    @abc.abstractmethod
-    def scores(self):
-        ...
+    def __init__(self, 
+                 forward_data: pd.DataFrame, 
+                 scores: pd.DataFrame):
+        self.scores = scores
+        self.forward_data = forward_data
 
     def analyze(self) -> MonitoringStats:
-        ic_sp_series, ic_pe_series = self._compute_ic_statistics()
+        ic_sp_series = self._compute_ic_statistics()
         return MonitoringStats(
-            ic_statistics={"spearman": ic_sp_series.to_dict(), "pearson": ic_pe_series.to_dict()},
+            ic_statistics={"spearman": ic_sp_series.to_dict()},
             ic_summary=self._compute_ic_summary(ic_sp_series)
         )
 
@@ -30,7 +27,6 @@ class BaseSignalMonitor(abc.ABC):
         forward returns for each date, then applies a rolling mean to smooth the series.
         """
         ic_sp_values = []
-        ic_pe_values = []
         for date in self.scores.index:
             if date not in self.forward_data.index:
                 continue
@@ -42,16 +38,13 @@ class BaseSignalMonitor(abc.ABC):
                 continue
 
             ic_sp, _ = spearmanr(scores.loc[common], fwd_data.loc[common])
-            ic_pe, _ = pearsonr(scores.loc[common], fwd_data.loc[common])
             ic_sp_values.append((date, float(ic_sp)))
-            ic_pe_values.append((date, float(ic_pe)))
-    
+
         if not ic_sp_values:
-            return pd.Series(dtype=float), pd.Series(dtype=float)
-        
+            return pd.Series(dtype=float)
+
         dates, ics_spear = zip(*ic_sp_values)
-        dates, ics_pear = zip(*ic_pe_values)
-        return pd.Series(ics_spear, index=dates), pd.Series(ics_pear, index=dates)
+        return pd.Series(ics_spear, index=dates)
 
     def _compute_ic_summary(self, ic_series: pd.Series) -> dict:
         """
@@ -93,30 +86,25 @@ class BaseSignalMonitor(abc.ABC):
 class PairsICDiagnostics(BaseSignalMonitor):
     def __init__(self, 
                  pairs_cache: pd.DataFrame):
-        pairs_cache = pairs_cache.copy()
-        self.zscores = pairs_cache.groupby([pairs_cache.index, 'Pair'])['Zscore'].first().unstack('Pair')
-        self.forward_spread = pairs_cache.groupby([pairs_cache.index, 'Pair'])['RealizedReturn'].first().unstack('Pair')
-    
-    @property
-    def forward_data(self):
-        return self.forward_spread
-    
-    @property
-    def scores(self):
-        return -self.zscores
+        super().__init__(forward_data=None, scores=None)
+        self.pairs_cache = pairs_cache.copy()
+        self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
+
+    def analyze(self) -> MonitoringStats:
+        clean = (
+            self.pairs_cache[["Zscore", "FwdReturn"]]
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
+        ic_sp, p_value = spearmanr(-clean["Zscore"], clean["FwdReturn"])
+        return MonitoringStats(
+            ic_statistics={"spearman": float(ic_sp)},
+            ic_summary={"ic": float(ic_sp), "p_value": float(p_value), "n_observations": len(clean)}
+        )
     
 class LongOnlyICDiagnostics(BaseSignalMonitor):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
                  forward_returns: pd.DataFrame,
                  signal: pd.DataFrame):
-        self.forward_returns = forward_returns
-        self.signal = signal
-
-    @property
-    def forward_data(self):
-        return self.forward_returns
-    
-    @property
-    def scores(self):
-        return self.signal
+        super().__init__(forward_returns, signal)

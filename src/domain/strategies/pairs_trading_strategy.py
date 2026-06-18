@@ -39,23 +39,20 @@ class PairsTradingStrategy(BaseStrategy):
         if active_pairs.empty:
             return current_weights
 
-
         new_weights = {ticker: 0.0 for ticker in tickers}
-        for pair in active_pairs.itertuples():
-            hedge_ratio = pair.HedgeRatio
-            if pair.State in {"EnterShort", "HoldShort"}:
-                asset_a_wght = -pair.FinalWeight
-                asset_b_wght = pair.FinalWeight * hedge_ratio
-            elif pair.State in {"EnterLong", "HoldLong"}:
-                asset_a_wght = pair.FinalWeight
-                asset_b_wght = -pair.FinalWeight * hedge_ratio
-            else:
-                continue
+        active = active_pairs[active_pairs["State"].isin({"EnterShort", "HoldShort", "EnterLong", "HoldLong"})].copy()
 
-            new_weights[pair.AssetA] += asset_a_wght
-            new_weights[pair.AssetB] += asset_b_wght
+        sign = np.where(active["State"].isin({"EnterShort", "HoldShort"}), -1.0, 1.0)
+        active["WeightA"] = sign * active["FinalWeight"]
+        active["WeightB"] = -sign * active["FinalWeight"] * active["HedgeRatio"]
 
-            self.pairs_cache.append(pair)
+        weight_a = active.groupby("AssetA")["WeightA"].sum()
+        weight_b = active.groupby("AssetB")["WeightB"].sum()
+        for ticker, w in weight_a.add(weight_b, fill_value=0).items():
+            if ticker in new_weights:
+                new_weights[ticker] = w
+
+        self.pairs_cache.extend(active.itertuples())
 
         if sum(new_weights.values()) == 0:
             return current_weights

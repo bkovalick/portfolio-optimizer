@@ -3,11 +3,11 @@ from dataclasses import dataclass
 @dataclass
 class PairsTradingConfig:
     pairs_lookback_horizon: int
-    cointegration_threshold: int
-    correlation_filter: int
-    pairs_entry: int
-    pairs_exit: int
-    pairs_stop_loss: int
+    cointegration_threshold: float
+    correlation_filter: float
+    pairs_entry: float
+    pairs_exit: float
+    pairs_stop_loss: float
 
     @classmethod
     def from_dict(cls, d: dict):
