@@ -41,7 +41,8 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
         raise ValueError("Error: Market state configuration must be present to run a backtest")
     return MarketStateConfig.from_dict(market_state_config)
 
-def compute_monitoring_stats(rebalance_problem: RebalanceProblem, run: BacktestRun) -> MonitoringStats | None:
+def compute_monitoring_stats(rebalance_problem: RebalanceProblem, 
+                             run: BacktestRun) -> MonitoringStats | None:
     """
         Computes monitoring statistics based on the type of rebalance problem 
         and the results of the backtest run.
@@ -58,12 +59,25 @@ def compute_monitoring_stats(rebalance_problem: RebalanceProblem, run: BacktestR
     scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
     fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
     pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
+
     if rebalance_problem.monitoring_type == "long_only":
+        if scores_history_df is None or scores_history_df.empty:
+            logger.warning("Scores history is empty or None. Skipping monitoring stats computation.")
+            return None
+
+        if fwd_df is None or fwd_df.empty:
+            logger.warning("Forward returns history is empty or None. Skipping monitoring stats computation.")
+            return None
+        
         monitor = monitor_ref(
             fwd_df,
             scores_history_df
         )
     elif rebalance_problem.monitoring_type == "pairs":
+        if pairs_cache_df is None or pairs_cache_df.empty:
+            logger.warning("Pairs cache is empty or None. Skipping monitoring stats computation.")
+            return None
+            
         monitor = monitor_ref(
             pairs_cache_df
         )
@@ -198,7 +212,7 @@ class ExperimentRunner:
         )
 
         run_id = str(uuid.uuid4())
-        monitoring_stats = self._compute_monitoring_stats(rebalance_problem, run)
+        monitoring_stats = compute_monitoring_stats(rebalance_problem, run)
         return StrategyRun(
             run_id, 
             strategy_cfg["name"],
@@ -294,47 +308,3 @@ class ExperimentRunner:
             "username": "bkovalick", 
             "engine_version": "1.0.0"
         }
-    
-    def _compute_monitoring_stats(self, 
-                                  rebalance_problem: RebalanceProblem, 
-                                  run: BacktestRun) -> MonitoringStats:
-        """
-            Computes monitoring statistics based on the type of rebalance problem 
-            and the results of the backtest run.
-        """
-        monitor_ref = {
-            "long_only": LongOnlyICDiagnostics,
-            "pairs": PairsICDiagnostics
-        }.get(rebalance_problem.monitoring_type, None)
-
-        if monitor_ref is None:
-            logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. Skipping monitoring stats computation.")
-            return None
-        
-        scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
-        fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
-        pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
-
-        if rebalance_problem.monitoring_type == "long_only":
-            if scores_history_df is None or scores_history_df.empty:
-                logger.warning("Scores history is empty or None. Skipping monitoring stats computation.")
-                return None
-
-            if fwd_df is None or fwd_df.empty:
-                logger.warning("Forward returns history is empty or None. Skipping monitoring stats computation.")
-                return None
-            
-            monitor = monitor_ref(
-                fwd_df,
-                scores_history_df
-            )
-        elif rebalance_problem.monitoring_type == "pairs":
-            if pairs_cache_df is None or pairs_cache_df.empty:
-                logger.warning("Pairs cache is empty or None. Skipping monitoring stats computation.")
-                return None
-                
-            monitor = monitor_ref(
-                pairs_cache_df
-            )
-
-        return monitor.analyze()
