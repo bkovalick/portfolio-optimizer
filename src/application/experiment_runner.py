@@ -1,6 +1,6 @@
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
-from reporting.signal_monitoring import LongOnlyICDiagnostics, PairsICDiagnostics
+from reporting.signal_monitoring import LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
 from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
@@ -49,7 +49,7 @@ def compute_monitoring_stats(rebalance_problem: RebalanceProblem,
     """
     monitor_ref = {
         "long_only": LongOnlyICDiagnostics,
-        "pairs": PairsICDiagnostics
+        "pairs": PairsSpreadDiagnostics
     }.get(rebalance_problem.monitoring_type, None)
 
     if monitor_ref is None:
@@ -171,7 +171,7 @@ class ExperimentRunner:
                 run = future.result()
                 experiment.add_run(run)
 
-        # self._save_results(experiment)
+        self._save_results(experiment)
         return experiment
     
     def _run_strategy(self, 

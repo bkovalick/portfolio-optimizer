@@ -5,21 +5,51 @@ from scipy.stats import spearmanr
 from scipy import stats
 
 from models.monitoring_stats import MonitoringStats
-        
-class BaseSignalMonitor(abc.ABC):
 
+class BaseMonitor(abc.ABC):
+    @abc.abstractmethod
+    def analyze(self) -> MonitoringStats: ...
+
+class PairsSpreadDiagnostics(BaseMonitor):
     def __init__(self, 
-                 forward_data: pd.DataFrame, 
-                 scores: pd.DataFrame):
-        self.scores = scores
-        self.forward_data = forward_data
+                 pairs_cache: pd.DataFrame):
+        self.pairs_cache = pairs_cache.copy()
+        self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
+
+    def analyze(self) -> MonitoringStats:
+        ic_sp_series = self._compute_ic_statistics()
+        return MonitoringStats(
+            ic_statistics={"spearman": ic_sp_series.to_dict()},
+            ic_summary= {"mean_ic": float(ic_sp_series.mean())}
+        )
+
+    def _compute_ic_statistics(self) -> pd.Series:
+        """
+        Computes the Spearman rank correlation (IC) between the signal and 
+        forward returns for each date, then applies a rolling mean to smooth the series.
+        """
+        clean = (
+            self.pairs_cache[["Zscore", "FwdReturn"]]
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
+        ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
+        return pd.Series([ic_sp], dtype=float)
+    
+class LongOnlyICDiagnostics(BaseMonitor):
+    """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
+    def __init__(self, 
+                 forward_returns: pd.DataFrame,
+                 signal: pd.DataFrame):
+        self.forward_data = forward_returns
+        self.scores = signal
 
     def analyze(self) -> MonitoringStats:
         ic_sp_series = self._compute_ic_statistics()
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()},
             ic_summary=self._compute_ic_summary(ic_sp_series)
-        )
+        )        
 
     def _compute_ic_statistics(self) -> pd.Series:
         """
@@ -45,7 +75,7 @@ class BaseSignalMonitor(abc.ABC):
 
         dates, ics_spear = zip(*ic_sp_values)
         return pd.Series(ics_spear, index=dates)
-
+    
     def _compute_ic_summary(self, ic_series: pd.Series) -> dict:
         """
         Perform a one-sample t-test to determine if the mean IC is significantly different from zero.
@@ -82,30 +112,3 @@ class BaseSignalMonitor(abc.ABC):
 
         half_life = np.log(0.5) / np.log(phi)
         return half_life
-
-class PairsICDiagnostics(BaseSignalMonitor):
-    def __init__(self, 
-                 pairs_cache: pd.DataFrame):
-        super().__init__(forward_data=None, scores=None)
-    #     self.pairs_cache = pairs_cache.copy()
-    #     self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
-
-    # def _compute_ic_statistics(self) -> pd.Series:
-    #     """
-    #     Computes the Spearman rank correlation (IC) between the signal and 
-    #     forward returns for each date, then applies a rolling mean to smooth the series.
-    #     """
-    #     clean = (
-    #         self.pairs_cache[["Zscore", "FwdReturn"]]
-    #         .replace([np.inf, -np.inf], np.nan)
-    #         .dropna()
-    #     )
-    #     ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
-    #     return pd.Series(ic_sp, dtype=float)
-    
-class LongOnlyICDiagnostics(BaseSignalMonitor):
-    """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
-    def __init__(self, 
-                 forward_returns: pd.DataFrame,
-                 signal: pd.DataFrame):
-        super().__init__(forward_returns, signal)

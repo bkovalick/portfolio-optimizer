@@ -229,186 +229,6 @@ export default function Sidebar({ setExperiment, experiment }: any) {
             : null}
         </Section>
 
-                  <Section title="Signals">
-                    {currentStrategy ? (
-                    <>
-                    <Row label="Signal">
-                      <select
-                        style={inputStyle}
-                        value={inferredSignalSource}
-                        onChange={(e) => updateField(["rebalance_problem", "signal_source"], e.target.value)}
-                      >
-                        {signalSourceOptions.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </Row>
-
-                    <Row label="Winsorize">
-                      <select
-                        style={inputStyle}
-                        value={currentStrategy.signals_config?.apply_winsorizing ? "true" : "false"}
-                        onChange={(e) => updateField(["signals_config", "apply_winsorizing"], e.target.value === "true")}
-                      >
-                        <option value="false">Off</option>
-                        <option value="true">On</option>
-                      </select>
-                    </Row>
-
-                    {currentStrategy.signals_config?.apply_winsorizing && (
-                      <>
-                        <Row label="Lower %">
-                          <input
-                            type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy.signals_config?.windsor_percentiles?.lower ?? 0.05}
-                            onChange={(e) => updateField(["signals_config", "windsor_percentiles", "lower"], Number(e.target.value))}
-                          />
-                        </Row>
-                        <Row label="Upper %">
-                          <input
-                            type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy.signals_config?.windsor_percentiles?.upper ?? 0.95}
-                            onChange={(e) => updateField(["signals_config", "windsor_percentiles", "upper"], Number(e.target.value))}
-                          />
-                        </Row>
-                      </>
-                    )}
-
-                    {(inferredSignalSource === "mean_reversion" || hasMeanReversionSignals) && (
-                      <Row label="MR Window">
-                        <input
-                          type="number"
-                          style={inputStyle}
-                          value={currentStrategy.signals_config?.mean_reversion_window ?? 0}
-                          onChange={(e) => updateField(["signals_config", "mean_reversion_window"], Number(e.target.value))}
-                        />
-                      </Row>
-                    )}
-
-                    {(inferredSignalSource === "momentum" || hasMomentumSignals) && (
-                      <Row label="Mom Skip">
-                        <input
-                          type="number"
-                          style={inputStyle}
-                          value={currentStrategy.signals_config?.momentum_skip_periods ?? 0}
-                          onChange={(e) => updateField(["signals_config", "momentum_skip_periods"], Number(e.target.value))}
-                        />
-                      </Row>
-                    )}
-
-                    {(inferredSignalSource === "ml_cross_sectional" || hasMlSignals) && (
-                      <>
-                        <div style={blHeader}>
-                          <span style={blLabel}>Machine Learning</span>
-                          {!hasMlSignals && (
-                            <button
-                              style={blAddBtn}
-                              onClick={() => updateField(["signals_config", "ml_signals_config"], {
-                                enabled: true,
-                                features_model: "cross_sectional_model",
-                                training_window: "2y",
-                                horizon: "1m",
-                                alpha: 1.0,
-                                rebal_cadence: "1m",
-                                sample_stride: "1w"
-                              })}
-                            >
-                              + Add
-                            </button>
-                          )}
-                        </div>
-                        {hasMlSignals && (
-                          <div style={blBlock}>
-                            <Row label="Training">
-                              <select style={inputStyle}
-                                value={currentStrategy.signals_config?.ml_signals_config?.training_window ?? "2y"}
-                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "training_window"], e.target.value)}>
-                                {["6m", "1y", "2y", "3y", "5y"].map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            </Row>
-                            <Row label="Horizon">
-                              <select style={inputStyle}
-                                value={currentStrategy.signals_config?.ml_signals_config?.horizon ?? "1m"}
-                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "horizon"], e.target.value)}>
-                                {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            </Row>
-                            <Row label="Rebal Cadence">
-                              <select style={inputStyle}
-                                value={currentStrategy.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
-                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "rebal_cadence"], e.target.value)}>
-                                {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            </Row>
-                            <Row label="Sample Stride">
-                              <select style={inputStyle}
-                                value={currentStrategy.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
-                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "sample_stride"], e.target.value)}>
-                                {["1d", "1w", "2w", "1m"].map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            </Row>
-                            <Row label="Alpha">
-                              <input type="number" step={0.1} style={inputStyle}
-                                value={currentStrategy.signals_config?.ml_signals_config?.alpha ?? 1.0}
-                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "alpha"], Number(e.target.value))} />
-                            </Row>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {(inferredSignalSource === "black_litterman" || inferredSignalSource === "ml_cross_sectional" || hasBlackLitterman) && (
-                      <>
-                        <div style={blHeader}>
-                          <span style={blLabel}>
-                            {inferredSignalSource === "ml_cross_sectional" ? "Black-Litterman Overlay" : "Black-Litterman"}
-                          </span>
-                          {hasBlackLitterman ? (
-                            <button style={blRemoveBtn} onClick={() => {
-                              const updated = JSON.parse(JSON.stringify(editedStrategies))
-                              delete updated[selectedIdx].signals_config.black_litterman
-                              setEditedStrategies(updated)
-                            }}>Remove ✕</button>
-                          ) : inferredSignalSource === "ml_cross_sectional" ? (
-                            <button style={blAddBtn} onClick={() => {
-                              updateField(["signals_config", "black_litterman"],
-                                { delta: 2.5, tau: 0.05, reversion_view: 0.03, ml_view_spread: 0.03, view_direction: "momentum" })
-                            }}>+ Add</button>
-                          ) : null}
-                        </div>
-
-                        {hasBlackLitterman && (
-                          <div style={blBlock}>
-                            {([
-                              ["Delta", "delta", 0.1],
-                              ["Tau", "tau", 0.01],
-                              ["Reversion View", "reversion_view", 0.01],
-                              ["ML View Spread", "ml_view_spread", 0.01],
-                            ] as [string, string, number][]).map(([labelText, key, step]) => (
-                              <Row key={key} label={labelText}>
-                                <input type="number" step={step} style={inputStyle}
-                                  value={currentStrategy.signals_config?.black_litterman?.[key] ?? ""}
-                                  onChange={(e) => updateField(["signals_config", "black_litterman", key], Number(e.target.value))} />
-                              </Row>
-                            ))}
-                            <Row label="View Dir">
-                              <select style={inputStyle}
-                                value={currentStrategy.signals_config?.black_litterman?.view_direction ?? "momentum"}
-                                onChange={(e) => updateField(["signals_config", "black_litterman", "view_direction"], e.target.value)}>
-                                <option value="momentum">momentum</option>
-                                <option value="mean_reversion">mean_reversion</option>
-                              </select>
-                            </Row>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    </>
-                    ) : (
-                      <div style={emptyState}>Load a strategy set to configure signals.</div>
-                    )}
-                  </Section>
-
           <Section title="Market Configuration">
             <Row label="Start">
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle} />
@@ -636,6 +456,186 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                         {strategyTypes.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </Row>
+                  </Section>
+                  
+                  <Section title="Signals">
+                    {currentStrategy ? (
+                    <>
+                    <Row label="Signal">
+                      <select
+                        style={inputStyle}
+                        value={inferredSignalSource}
+                        onChange={(e) => updateField(["rebalance_problem", "signal_source"], e.target.value)}
+                      >
+                        {signalSourceOptions.map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </Row>
+
+                    <Row label="Winsorize">
+                      <select
+                        style={inputStyle}
+                        value={currentStrategy.signals_config?.apply_winsorizing ? "true" : "false"}
+                        onChange={(e) => updateField(["signals_config", "apply_winsorizing"], e.target.value === "true")}
+                      >
+                        <option value="false">Off</option>
+                        <option value="true">On</option>
+                      </select>
+                    </Row>
+
+                    {currentStrategy.signals_config?.apply_winsorizing && (
+                      <>
+                        <Row label="Lower %">
+                          <input
+                            type="number" step={0.01} min={0} max={1} style={inputStyle}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.lower ?? 0.05}
+                            onChange={(e) => updateField(["signals_config", "windsor_percentiles", "lower"], Number(e.target.value))}
+                          />
+                        </Row>
+                        <Row label="Upper %">
+                          <input
+                            type="number" step={0.01} min={0} max={1} style={inputStyle}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.upper ?? 0.95}
+                            onChange={(e) => updateField(["signals_config", "windsor_percentiles", "upper"], Number(e.target.value))}
+                          />
+                        </Row>
+                      </>
+                    )}
+
+                    {(inferredSignalSource === "mean_reversion" || hasMeanReversionSignals) && (
+                      <Row label="MR Window">
+                        <input
+                          type="number"
+                          style={inputStyle}
+                          value={currentStrategy.signals_config?.mean_reversion_window ?? 0}
+                          onChange={(e) => updateField(["signals_config", "mean_reversion_window"], Number(e.target.value))}
+                        />
+                      </Row>
+                    )}
+
+                    {(inferredSignalSource === "momentum" || hasMomentumSignals) && (
+                      <Row label="Mom Skip">
+                        <input
+                          type="number"
+                          style={inputStyle}
+                          value={currentStrategy.signals_config?.momentum_skip_periods ?? 0}
+                          onChange={(e) => updateField(["signals_config", "momentum_skip_periods"], Number(e.target.value))}
+                        />
+                      </Row>
+                    )}
+
+                    {(inferredSignalSource === "ml_cross_sectional" || hasMlSignals) && (
+                      <>
+                        <div style={blHeader}>
+                          <span style={blLabel}>Machine Learning</span>
+                          {!hasMlSignals && (
+                            <button
+                              style={blAddBtn}
+                              onClick={() => updateField(["signals_config", "ml_signals_config"], {
+                                enabled: true,
+                                features_model: "cross_sectional_model",
+                                training_window: "2y",
+                                horizon: "1m",
+                                alpha: 1.0,
+                                rebal_cadence: "1m",
+                                sample_stride: "1w"
+                              })}
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                        {hasMlSignals && (
+                          <div style={blBlock}>
+                            <Row label="Training">
+                              <select style={inputStyle}
+                                value={currentStrategy.signals_config?.ml_signals_config?.training_window ?? "2y"}
+                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "training_window"], e.target.value)}>
+                                {["6m", "1y", "2y", "3y", "5y"].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </Row>
+                            <Row label="Horizon">
+                              <select style={inputStyle}
+                                value={currentStrategy.signals_config?.ml_signals_config?.horizon ?? "1m"}
+                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "horizon"], e.target.value)}>
+                                {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </Row>
+                            <Row label="Rebal Cadence">
+                              <select style={inputStyle}
+                                value={currentStrategy.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
+                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "rebal_cadence"], e.target.value)}>
+                                {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </Row>
+                            <Row label="Sample Stride">
+                              <select style={inputStyle}
+                                value={currentStrategy.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
+                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "sample_stride"], e.target.value)}>
+                                {["1d", "1w", "2w", "1m"].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </Row>
+                            <Row label="Alpha">
+                              <input type="number" step={0.1} style={inputStyle}
+                                value={currentStrategy.signals_config?.ml_signals_config?.alpha ?? 1.0}
+                                onChange={(e) => updateField(["signals_config", "ml_signals_config", "alpha"], Number(e.target.value))} />
+                            </Row>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {(inferredSignalSource === "black_litterman" || inferredSignalSource === "ml_cross_sectional" || hasBlackLitterman) && (
+                      <>
+                        <div style={blHeader}>
+                          <span style={blLabel}>
+                            {inferredSignalSource === "ml_cross_sectional" ? "Black-Litterman Overlay" : "Black-Litterman"}
+                          </span>
+                          {hasBlackLitterman ? (
+                            <button style={blRemoveBtn} onClick={() => {
+                              const updated = JSON.parse(JSON.stringify(editedStrategies))
+                              delete updated[selectedIdx].signals_config.black_litterman
+                              setEditedStrategies(updated)
+                            }}>Remove ✕</button>
+                          ) : inferredSignalSource === "ml_cross_sectional" ? (
+                            <button style={blAddBtn} onClick={() => {
+                              updateField(["signals_config", "black_litterman"],
+                                { delta: 2.5, tau: 0.05, reversion_view: 0.03, ml_view_spread: 0.03, view_direction: "momentum" })
+                            }}>+ Add</button>
+                          ) : null}
+                        </div>
+
+                        {hasBlackLitterman && (
+                          <div style={blBlock}>
+                            {([
+                              ["Delta", "delta", 0.1],
+                              ["Tau", "tau", 0.01],
+                              ["Reversion View", "reversion_view", 0.01],
+                              ["ML View Spread", "ml_view_spread", 0.01],
+                            ] as [string, string, number][]).map(([labelText, key, step]) => (
+                              <Row key={key} label={labelText}>
+                                <input type="number" step={step} style={inputStyle}
+                                  value={currentStrategy.signals_config?.black_litterman?.[key] ?? ""}
+                                  onChange={(e) => updateField(["signals_config", "black_litterman", key], Number(e.target.value))} />
+                              </Row>
+                            ))}
+                            <Row label="View Dir">
+                              <select style={inputStyle}
+                                value={currentStrategy.signals_config?.black_litterman?.view_direction ?? "momentum"}
+                                onChange={(e) => updateField(["signals_config", "black_litterman", "view_direction"], e.target.value)}>
+                                <option value="momentum">momentum</option>
+                                <option value="mean_reversion">mean_reversion</option>
+                              </select>
+                            </Row>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    </>
+                    ) : (
+                      <div style={emptyState}>Load a strategy set to configure signals.</div>
+                    )}
                   </Section>
 
                   <Section title="Rebalance">

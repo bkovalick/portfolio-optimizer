@@ -7,14 +7,12 @@ from dataclasses import asdict
 from models.experiment import Experiment
 from models.strategy_run import StrategyRun
 
-
 class _DataclassEncoder(json.JSONEncoder):
     """Serialises dataclass instances that survive into JSON payloads."""
     def default(self, obj):
         if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             return dataclasses.asdict(obj)
         return super().default(obj)
-
 
 def _dumps(obj) -> str:
     return json.dumps(obj, cls=_DataclassEncoder)
@@ -30,7 +28,7 @@ class GatewayBase:
         self.conn.close()
 
 class StrategyResultsDataGateway(GatewayBase):
-    CREATE_TABLE = """
+    CREATE_TABLE_STRATEGY_RUN = """
         CREATE TABLE IF NOT EXISTS strategy_runs (
             experiment_id    VARCHAR,
             run_id          VARCHAR PRIMARY KEY,
@@ -40,11 +38,59 @@ class StrategyResultsDataGateway(GatewayBase):
         )
     """
 
-    INSERT = """
+    CREATE_TABLE_BACKTEST_SUMMARY = """
+        CREATE TABLE IF NOT EXISTS backtest_summary (
+            experiment_id    VARCHAR,
+            run_id          VARCHAR PRIMARY KEY,
+            strategy_name   VARCHAR,
+            strategy_config JSON,
+            metadata        JSON
+        )
+    """
+
+    CREATE_TABLE_BACKTEST_SERIES = """
+        CREATE TABLE IF NOT EXISTS backtest_series (
+            experiment_id    VARCHAR,
+            run_id          VARCHAR PRIMARY KEY,
+            strategy_name   VARCHAR,
+            strategy_config JSON,
+            metadata        JSON
+        )
+    """
+
+    CREATE_TABLE_IC_SUMMARY = """
+        CREATE TABLE IF NOT EXISTS ic_summary (
+            experiment_id    VARCHAR,
+            run_id          VARCHAR PRIMARY KEY,
+            strategy_name   VARCHAR,
+            strategy_config JSON,
+            metadata        JSON
+        )
+    """
+
+    CREATE_TABLE_IC_SERIES = """
+        CREATE TABLE IF NOT EXISTS ic_series (
+            experiment_id    VARCHAR,
+            run_id          VARCHAR PRIMARY KEY,
+            strategy_name   VARCHAR,
+            strategy_config JSON,
+            metadata        JSON
+        )
+    """                
+
+    INSERT_STRATEGY_RUN = """
         INSERT OR REPLACE INTO strategy_runs
             (experiment_id, run_id, strategy_name, strategy_config, metadata)
         VALUES (?, ?, ?, ?, ?)
     """
+
+    INSERT_B_SUMMARY = """
+    
+    """    
+
+    INSERT_B_SERIES = """
+    
+    """        
 
     INSERT_IC_SUMMARY = """
     
@@ -59,11 +105,15 @@ class StrategyResultsDataGateway(GatewayBase):
         self._ensure_schema()
 
     def _ensure_schema(self):
-        self.conn.execute(self.CREATE_TABLE)
+        self.conn.execute(self.CREATE_TABLE_STRATEGY_RUN)
+        self.conn.execute(self.CREATE_TABLE_BACKTEST_SUMMARY)
+        self.conn.execute(self.CREATE_TABLE_BACKTEST_SERIES)
+        self.conn.execute(self.CREATE_TABLE_IC_SUMMARY)
+        self.conn.execute(self.CREATE_TABLE_IC_SERIES)
 
     def save_strategy_run(self, experiment_id: str, run: StrategyRun):
         d = run.to_dict()
-        self.conn.execute(self.INSERT, [
+        self.conn.execute(self.INSERT_STRATEGY_RUN, [
             experiment_id,
             d["run_id"],
             d["strategy_name"],
