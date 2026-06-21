@@ -41,7 +41,6 @@
       "AMGN",
       "BIIB",
       "IDXX",
-      "HOLX",
       "UHS",
       "JPM",
       "BAC",
@@ -165,7 +164,7 @@
     {
       "name": "pairs_trading_strat",
       "market_state_config": {
-        "lookback_window_key": "1y",
+        "lookback_window_key": "2m",
         "market_frequency": "d",
         "cash_allocation": 1.0,
         "exogenous_tickers": [
@@ -200,7 +199,6 @@
           "AMGN",
           "BIIB",
           "IDXX",
-          "HOLX",
           "UHS",
           "JPM",
           "BAC",
