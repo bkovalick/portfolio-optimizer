@@ -171,7 +171,7 @@ class ExperimentRunner:
                 run = future.result()
                 experiment.add_run(run)
 
-        self._save_results(experiment)
+        # self._save_results(experiment)
         return experiment
     
     def _run_strategy(self, 

@@ -139,6 +139,40 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     setEditedStrategies(updated)
   }
 
+  // BL is an overlay, not a signal. It's preserved when switching between any
+  // view-producing signal, and stripped only when switching to pairs (which is
+  // market-neutral and has no prior-vs-views framework).
+  const SIGNAL_CONFIG_KEYS: Record<string, string[]> = {
+    mean_reversion:      ["mean_reversion_window", "black_litterman"],
+    momentum:            ["momentum_skip_periods", "black_litterman"],
+    pairs_trading:       ["pairs_trading"],
+    ml_cross_sectional:  ["ml_signals_config", "black_litterman"],
+    risk_return:         ["black_litterman"],
+    moving_average:      ["black_litterman"],
+    volatility_forecast: ["black_litterman"],
+  }
+
+  const changeSignalSource = (newSource: string) => {
+    const updated = JSON.parse(JSON.stringify(editedStrategies))
+    const strat = updated[selectedIdx]
+    if (!strat.rebalance_problem) strat.rebalance_problem = {}
+    strat.rebalance_problem.signal_source = newSource
+
+    const sc = strat.signals_config ?? {}
+    const keep = new Set(SIGNAL_CONFIG_KEYS[newSource] ?? [])
+    const allSignalKeys = new Set(Object.values(SIGNAL_CONFIG_KEYS).flat())
+
+    // Strip any signal-specific block that doesn't belong to the new source.
+    // Generic keys (apply_winsorizing, windsor_percentiles) are never in
+    // allSignalKeys, so they persist across switches.
+    for (const key of Object.keys(sc)) {
+      if (allSignalKeys.has(key) && !keep.has(key)) delete sc[key]
+    }
+
+    strat.signals_config = sc
+    setEditedStrategies(updated)
+  }
+
   const openJsonEditor = () => {
     setJsonText(JSON.stringify(currentStrategy, null, 2))
     setJsonError(null)
@@ -185,7 +219,6 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     ["moving_average", "Moving Average"],
     ["volatility_forecast", "Volatility Forecast"],
     ["momentum", "Momentum"],
-    ["black_litterman", "Black-Litterman"],
     ["ml_cross_sectional", "Machine Learning"],
     ["pairs_trading", "Pairs Trading"],
   ] as const
@@ -195,7 +228,6 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     if (explicit) return explicit
     if (currentStrategy?.signals_config?.ml_signals_config) return "ml_cross_sectional"
     if (currentStrategy?.signals_config?.pairs_trading) return "pairs_trading"
-    if (currentStrategy?.signals_config?.black_litterman) return "black_litterman"
     if (currentStrategy?.signals_config?.mean_reversion_window !== undefined) return "mean_reversion"
     if (currentStrategy?.signals_config?.momentum_skip_periods !== undefined) return "momentum"
     return "risk_return"
@@ -203,8 +235,12 @@ export default function Sidebar({ setExperiment, experiment }: any) {
 
   const hasMlSignals = !!currentStrategy?.signals_config?.ml_signals_config
   const hasBlackLitterman = !!currentStrategy?.signals_config?.black_litterman
+  const hasPairsTrading = !!currentStrategy?.signals_config?.pairs_trading
   const hasMeanReversionSignals = currentStrategy?.signals_config?.mean_reversion_window !== undefined
   const hasMomentumSignals = currentStrategy?.signals_config?.momentum_skip_periods !== undefined
+  // BL is an overlay available on any view-producing signal — i.e. everything
+  // except pairs trading, which is market-neutral with no prior-vs-views model.
+  const blApplies = !!inferredSignalSource && inferredSignalSource !== "pairs_trading"
 
   return (
     <div style={container}>
@@ -457,7 +493,16 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                       </select>
                     </Row>
                   </Section>
-                  
+
+                  <Section title="Rebalance">
+                    <Row label="Frequency">
+                      <select style={inputStyle}
+                        value={currentStrategy.rebalance_problem?.rebalance_frequency ?? "weekly"}
+                        onChange={(e) => updateField(["rebalance_problem", "rebalance_frequency"], e.target.value)}>
+                        {rebalanceOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </Row>
+                  </Section>
                   <Section title="Signals">
                     {currentStrategy ? (
                     <>
@@ -465,7 +510,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                       <select
                         style={inputStyle}
                         value={inferredSignalSource}
-                        onChange={(e) => updateField(["rebalance_problem", "signal_source"], e.target.value)}
+                        onChange={(e) => changeSignalSource(e.target.value)}
                       >
                         {signalSourceOptions.map(([value, label]) => (
                           <option key={value} value={value}>{label}</option>
@@ -525,6 +570,42 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                       </Row>
                     )}
 
+                    {(inferredSignalSource === "pairs_trading" || hasPairsTrading) && (
+                        <div style={blBlock}>
+                          <Row label="Lookback Horizon">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_lookback_horizon ?? 20}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_lookback_horizon"], Number(e.target.value))} />
+                          </Row>                          
+                          <Row label="Cointegration Threshold">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.cointegration_threshold ?? 0.05}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "cointegration_threshold"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Correlation Filter">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.correlation_filter ?? 0.70}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "correlation_filter"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Entry">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_entry ?? 1.25}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_entry"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Exit">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_exit ?? 0.5}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_exit"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Stop Loss">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_stop_loss ?? 3.5}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_stop_loss"], Number(e.target.value))} />
+                          </Row>                          
+                        </div>
+                    )}
+
+                    
                     {(inferredSignalSource === "ml_cross_sectional" || hasMlSignals) && (
                       <>
                         <div style={blHeader}>
@@ -586,24 +667,22 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                       </>
                     )}
 
-                    {(inferredSignalSource === "black_litterman" || inferredSignalSource === "ml_cross_sectional" || hasBlackLitterman) && (
+                    {blApplies && (
                       <>
                         <div style={blHeader}>
-                          <span style={blLabel}>
-                            {inferredSignalSource === "ml_cross_sectional" ? "Black-Litterman Overlay" : "Black-Litterman"}
-                          </span>
+                          <span style={blLabel}>Black-Litterman Overlay</span>
                           {hasBlackLitterman ? (
                             <button style={blRemoveBtn} onClick={() => {
                               const updated = JSON.parse(JSON.stringify(editedStrategies))
                               delete updated[selectedIdx].signals_config.black_litterman
                               setEditedStrategies(updated)
                             }}>Remove ✕</button>
-                          ) : inferredSignalSource === "ml_cross_sectional" ? (
+                          ) : (
                             <button style={blAddBtn} onClick={() => {
                               updateField(["signals_config", "black_litterman"],
                                 { delta: 2.5, tau: 0.05, reversion_view: 0.03, ml_view_spread: 0.03, view_direction: "momentum" })
                             }}>+ Add</button>
-                          ) : null}
+                          )}
                         </div>
 
                         {hasBlackLitterman && (
@@ -636,16 +715,6 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                     ) : (
                       <div style={emptyState}>Load a strategy set to configure signals.</div>
                     )}
-                  </Section>
-
-                  <Section title="Rebalance">
-                    <Row label="Frequency">
-                      <select style={inputStyle}
-                        value={currentStrategy.rebalance_problem?.rebalance_frequency ?? "weekly"}
-                        onChange={(e) => updateField(["rebalance_problem", "rebalance_frequency"], e.target.value)}>
-                        {rebalanceOptions.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </Row>
                   </Section>
 
                   {currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy" && (() => {

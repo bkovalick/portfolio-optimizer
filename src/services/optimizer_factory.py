@@ -23,6 +23,9 @@ class OptimizerFactory:
     @classmethod
     def create_optimizer(cls, optimizer_type):
         optimizer = cls._optimizers.get(optimizer_type)
+        if optimizer == "None":
+            return FixedWeightOptimizer()
+
         if optimizer:
             return optimizer()
         else:

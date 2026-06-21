@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import duckdb as db
 import json
 import dataclasses
@@ -8,10 +9,17 @@ from models.experiment import Experiment
 from models.strategy_run import StrategyRun
 
 class _DataclassEncoder(json.JSONEncoder):
-    """Serialises dataclass instances that survive into JSON payloads."""
     def default(self, obj):
         if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             return dataclasses.asdict(obj)
+        if hasattr(obj, "to_dict") and callable(obj.to_dict):
+            return obj.to_dict()
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
         return super().default(obj)
 
 def _dumps(obj) -> str:

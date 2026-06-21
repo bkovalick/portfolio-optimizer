@@ -46,6 +46,8 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
     def analyze(self) -> MonitoringStats:
         ic_sp_series = self._compute_ic_statistics()
+        # need to add factor regression
+        factor_regression = self._ols_fama_french_factor_regression() # need strategy returns
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()},
             ic_summary=self._compute_ic_summary(ic_sp_series)
@@ -93,7 +95,7 @@ class LongOnlyICDiagnostics(BaseMonitor):
             "t_statistic": t_stat, 
             "p_value": p_value,
             "half_life": self._compute_half_life(ic_series),
-            "n_observations": len(ic_series.dropna())
+            "n_observations": len(ic_series.dropna()),
         }
     
     def _compute_half_life(self, ic_series: pd.Series) -> float:
@@ -112,3 +114,6 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
         half_life = np.log(0.5) / np.log(phi)
         return half_life
+    
+    def _ols_fama_french_factor_regression(self):
+        pass
