@@ -38,7 +38,19 @@ class MarketState:
     @property
     def sector_map(self):
         return MarketMetadata.build_sector_map(self.investment_universe)
+
+    @property
+    def sector_dict(self) -> dict:
+        return self.store.sectors[self.investment_universe].to_dict()
     
+    @property
+    def sectors_to_tickers(self) -> dict:
+        sectors_to_tickers: dict[str, list] = {}
+        for ticker, sector in self.sector_dict.items():
+            if sector and ticker in self.investment_prices.columns:
+                sectors_to_tickers.setdefault(sector, []).append(ticker)
+        return sectors_to_tickers
+
     @property
     def market_caps(self):
         return self.store.market_caps[self.investment_universe]

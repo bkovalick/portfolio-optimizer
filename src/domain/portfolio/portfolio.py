@@ -29,11 +29,15 @@ class Portfolio(PortfolioInterface):
     def drift(self, prev_weights: np.ndarray, asset_returns: np.ndarray, cursor: int) -> np.ndarray:
         """ Updates weights and returns """
         portfolio_return = np.sum(prev_weights * asset_returns)
-
         new_weights = prev_weights * (1 + asset_returns)
-        new_weights /= new_weights.sum()
+        
+        if np.any(new_weights < 0):
+            gross = np.sum(np.abs(new_weights))
+            if gross > 0:
+                new_weights /= gross
+        else:
+            new_weights /= new_weights.sum()
 
         self.weights.iloc[cursor] = new_weights
         self.returns.iloc[cursor] = portfolio_return
-
         return np.array(new_weights)

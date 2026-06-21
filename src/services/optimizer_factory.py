@@ -19,10 +19,13 @@ class OptimizerFactory:
         "fwp_optimizer": FixedWeightOptimizer
     }
 
-    """Concrete implementation of an optimizer factory."""
+    """Concrete implementation of a optimizer factory."""
     @classmethod
     def create_optimizer(cls, optimizer_type):
         optimizer = cls._optimizers.get(optimizer_type)
+        if optimizer_type == "None":
+            return FixedWeightOptimizer()
+
         if optimizer:
             return optimizer()
         else:

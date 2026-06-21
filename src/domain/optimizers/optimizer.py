@@ -94,7 +94,7 @@ class Optimizer(BaseOptimizer):
 		objective = self._setup_objective(decision_variables, rebalance_problem, signals)
 		prob = cp.Problem(objective, constraints)
 
-		for solver in [cp.CLARABEL, cp.ECOS, cp.SCS, cp.OSQP]:
+		for solver in [cp.CLARABEL, cp.SCS, cp.OSQP]:
 			try:
 				prob.solve(solver=solver, verbose=False)
 				if prob.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:

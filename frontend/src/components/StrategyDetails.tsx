@@ -255,6 +255,7 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
         </ResponsiveContainer>
       </div>
 
+      {runs.some((run: any) => getCachedIcSeries(run).ic_series.length > 0) &&  (<>
       {/* Header */}
       <div style={headerBar}>
         <span style={headerLabel}>Information Coefficient Analysis</span>
@@ -325,6 +326,7 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
           </LineChart>
         </ResponsiveContainer>
       </div>
+      </>)}
 
       {/* Dual drag slider */}
       <div style={sliderContainer}>

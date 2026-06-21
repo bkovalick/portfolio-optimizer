@@ -92,10 +92,11 @@ class ExcelGenerator:
             ic_summary_rows.append(row)
 
             ic_statistics_df = deserialize_dataframe(strategy_run.monitoring_stats.ic_statistics)
-            ic_statistics_df.insert(0, "Date", pd.to_datetime(ic_statistics_df.index))
-            ic_statistics_df = ic_statistics_df.reset_index(drop=True)
-            ic_statistics_df.insert(1, "Strategy", strategy_name)
-            ic_statistics_df = ic_statistics_df.rename(columns= {0: "IC_Series"})
+            if len(ic_statistics_df) > 1:
+                ic_statistics_df.insert(0, "Date", pd.to_datetime(ic_statistics_df.index))
+                ic_statistics_df = ic_statistics_df.reset_index(drop=True)
+                ic_statistics_df.insert(1, "Strategy", strategy_name)
+                ic_statistics_df = ic_statistics_df.rename(columns= {0: "IC_Series"})
             ic_statistics_agg_df.append(ic_statistics_df)
 
         ic_summary_df = pd.DataFrame(ic_summary_rows)

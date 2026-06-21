@@ -3,56 +3,81 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
 from scipy import stats
+
 from models.monitoring_stats import MonitoringStats
 
-class BaseSignalMonitor(abc.ABC):
-    def analyze(self) -> MonitoringStats:
-        ic_series = self._compute_ic_statistics()
-        return MonitoringStats(
-            ic_statistics=ic_series.to_dict(),
-            ic_summary=self._compute_ic_summary(ic_series)
-        )
-
+class BaseMonitor(abc.ABC):
     @abc.abstractmethod
-    def _compute_ic_statistics(self): ...
+    def analyze(self) -> MonitoringStats: ...
 
-    @abc.abstractmethod
-    def _compute_ic_summary(self, ic_series: pd.Series): ...    
-
-class SignalICDiagnostics(BaseSignalMonitor):
+class PairsSpreadDiagnostics(BaseMonitor):
     def __init__(self, 
-                 forward_returns: pd.DataFrame,
-                 signal: pd.DataFrame):
-        """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
-        self.forward_returns = forward_returns
-        self.signal = signal
+                 pairs_cache: pd.DataFrame):
+        self.pairs_cache = pairs_cache.copy()
+        self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
+
+    def analyze(self) -> MonitoringStats:
+        ic_sp_series = self._compute_ic_statistics()
+        return MonitoringStats(
+            ic_statistics={"spearman": ic_sp_series.to_dict()},
+            ic_summary= {"mean_ic": float(ic_sp_series.mean())}
+        )
 
     def _compute_ic_statistics(self) -> pd.Series:
         """
-        Computes the Spearman rank correlation (IC) between the signal and forward returns for each date, 
-        then applies a rolling mean to smooth the series.
-        Returns a time series of IC values indexed by date.
+        Computes the Spearman rank correlation (IC) between the signal and 
+        forward returns for each date, then applies a rolling mean to smooth the series.
         """
-        ic_values = []
-        for date in self.signal.index:
-            if date not in self.forward_returns.index:
-                continue
+        clean = (
+            self.pairs_cache[["Zscore", "FwdReturn"]]
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
+        ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
+        return pd.Series([ic_sp], dtype=float)
+    
+class LongOnlyICDiagnostics(BaseMonitor):
+    """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
+    def __init__(self, 
+                 forward_returns: pd.DataFrame,
+                 signal: pd.DataFrame):
+        self.forward_data = forward_returns
+        self.scores = signal
 
-            scores = self.signal.loc[date].dropna()
-            fwd_returns = self.forward_returns.loc[date].dropna()
-            common = scores.index.intersection(fwd_returns.index)
+    def analyze(self) -> MonitoringStats:
+        ic_sp_series = self._compute_ic_statistics()
+        # need to add factor regression
+        factor_regression = self._ols_fama_french_factor_regression() # need strategy returns
+        return MonitoringStats(
+            ic_statistics={"spearman": ic_sp_series.to_dict()},
+            ic_summary=self._compute_ic_summary(ic_sp_series)
+        )        
+
+    def _compute_ic_statistics(self) -> pd.Series:
+        """
+        Computes the Spearman rank correlation (IC) between the signal and 
+        forward returns for each date, then applies a rolling mean to smooth the series.
+        """
+        ic_sp_values = []
+        for date in self.scores.index:
+            if date not in self.forward_data.index:
+                continue
+            
+            scores = self.scores.loc[date].dropna()
+            fwd_data = self.forward_data.loc[date].dropna()
+            common = scores.index.intersection(fwd_data.index)
             if len(common) < 5:
                 continue
 
-            ic, _ = spearmanr(scores.loc[common], fwd_returns.loc[common])
-            ic_values.append((date, ic))
-    
-        if not ic_values:
-            return pd.Series(dtype=float)
-        
-        dates, ics = zip(*ic_values)
-        return pd.Series(ics, index=dates)
+            ic_sp, _ = spearmanr(scores.loc[common], fwd_data.loc[common])
+            ic_sp_values.append((date, float(ic_sp)))
 
+        if not ic_sp_values:
+            return pd.Series(dtype=float)
+
+        dates, ics_spear = zip(*ic_sp_values)
+        return pd.Series(ics_spear, index=dates)
+    
     def _compute_ic_summary(self, ic_series: pd.Series) -> dict:
         """
         Perform a one-sample t-test to determine if the mean IC is significantly different from zero.
@@ -70,7 +95,7 @@ class SignalICDiagnostics(BaseSignalMonitor):
             "t_statistic": t_stat, 
             "p_value": p_value,
             "half_life": self._compute_half_life(ic_series),
-            "n_observations": len(ic_series.dropna())
+            "n_observations": len(ic_series.dropna()),
         }
     
     def _compute_half_life(self, ic_series: pd.Series) -> float:
@@ -89,3 +114,6 @@ class SignalICDiagnostics(BaseSignalMonitor):
 
         half_life = np.log(0.5) / np.log(phi)
         return half_life
+    
+    def _ols_fama_french_factor_regression(self):
+        pass

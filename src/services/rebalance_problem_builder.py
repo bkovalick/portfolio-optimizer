@@ -93,6 +93,7 @@ class RebalanceProblemBuilder:
             "transaction_cost": self.market_state.transaction_cost,
             "starting_portfolio_value": self.rebalance_config.starting_portfolio_value,
             "cash_infusion": self.rebalance_config.cash_infusion,
+            "monitoring_type": self.rebalance_config.monitoring_type
         }
 
         return RebalanceProblem(prepared_data)

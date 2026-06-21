@@ -1,6 +1,6 @@
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
-from reporting.signal_monitoring import SignalICDiagnostics
+from reporting.signal_monitoring import LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
 from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
@@ -13,6 +13,7 @@ from models.signals_config import SignalsConfig
 from models.rebalance_problem import RebalanceProblem
 from models.experiment import Experiment
 from models.monitoring_stats import MonitoringStats
+from models.backtest_run import BacktestRun
 from infrastructure.market_data_gateway import MarketDataStore
 from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway, StrategyResultsDataGateway
 
@@ -39,6 +40,49 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
     if market_state_config is None:
         raise ValueError("Error: Market state configuration must be present to run a backtest")
     return MarketStateConfig.from_dict(market_state_config)
+
+def compute_monitoring_stats(rebalance_problem: RebalanceProblem, 
+                             run: BacktestRun) -> MonitoringStats | None:
+    """
+        Computes monitoring statistics based on the type of rebalance problem 
+        and the results of the backtest run.
+    """
+    monitor_ref = {
+        "long_only": LongOnlyICDiagnostics,
+        "pairs": PairsSpreadDiagnostics
+    }.get(rebalance_problem.monitoring_type, None)
+
+    if monitor_ref is None:
+        logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. Skipping monitoring stats computation.")
+        return None
+    
+    scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
+    fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
+    pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
+
+    if rebalance_problem.monitoring_type == "long_only":
+        if scores_history_df is None or scores_history_df.empty:
+            logger.warning("Scores history is empty or None. Skipping monitoring stats computation.")
+            return None
+
+        if fwd_df is None or fwd_df.empty:
+            logger.warning("Forward returns history is empty or None. Skipping monitoring stats computation.")
+            return None
+        
+        monitor = monitor_ref(
+            fwd_df,
+            scores_history_df
+        )
+    elif rebalance_problem.monitoring_type == "pairs":
+        if pairs_cache_df is None or pairs_cache_df.empty:
+            logger.warning("Pairs cache is empty or None. Skipping monitoring stats computation.")
+            return None
+            
+        monitor = monitor_ref(
+            pairs_cache_df
+        )
+
+    return monitor.analyze()
 
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig):
     logger.info(f"Running strategy worker for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
@@ -78,17 +122,8 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
         market_store.prices[market_store_config.benchmark]
     )
     
-    monitoring_stats = None
-    if run.scores_history and run.fwd_returns_history:
-        scores_history_df = pd.DataFrame(run.scores_history).T
-        fwd_df = pd.DataFrame(run.fwd_returns_history).T
-        monitor = SignalICDiagnostics(
-            fwd_df,
-            scores_history_df
-        )
-        monitoring_stats = monitor.analyze()
-
     run_id = str(uuid.uuid4())
+    monitoring_stats = compute_monitoring_stats(rebalance_problem, run)
     return StrategyRun(
         run_id, 
         strategy_cfg["name"],
@@ -176,17 +211,8 @@ class ExperimentRunner:
             benchmark
         )
 
-        monitoring_stats = None
-        if run.scores_history and run.fwd_returns_history:
-            scores_history_df = pd.DataFrame(run.scores_history).T
-            fwd_df = pd.DataFrame(run.fwd_returns_history).T
-            monitor = SignalICDiagnostics(
-                fwd_df,
-                scores_history_df
-            )
-            monitoring_stats = monitor.analyze()
-
         run_id = str(uuid.uuid4())
+        monitoring_stats = compute_monitoring_stats(rebalance_problem, run)
         return StrategyRun(
             run_id, 
             strategy_cfg["name"],

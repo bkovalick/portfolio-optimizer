@@ -25,3 +25,16 @@ class RiskReturnSignals(Signals):
     def portfolio_vol(self, curr_weights: np.ndarray) -> float:
         cov = self.covariance_matrix()
         return np.sqrt(curr_weights.T @ cov @ curr_weights)
+
+    @property
+    def sector_dict(self) -> dict:
+        """Returns {ticker: sector_name} for the investment universe."""
+        result = {}
+        for sector, members in self.market_state.sector_map.items():
+            if isinstance(members, list):
+                for _, ticker in members:
+                    result[ticker] = sector
+            else:
+                _, ticker = members
+                result[ticker] = sector
+        return result
