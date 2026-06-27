@@ -19,13 +19,16 @@ class PairsTradingSignal:
         self.pairs_entry = pairs_trading_config.pairs_entry
         self.pairs_exit = pairs_trading_config.pairs_exit
         self.pairs_stop_loss = pairs_trading_config.pairs_stop_loss
+        self.per_pair_gross = 0.04
 
-    def compute_trading_pairs(self, current_weights_dict: dict) -> pd.DataFrame:
+    def compute_trading_pairs(self, 
+                              current_weights_dict: dict,
+                              existing_pairs: list) -> pd.DataFrame:
         """
            Identify pairs of assets that are historically correlated and cointegrated, 
            build portfolio weights based on the signal and return those weights 
         """
-        pairs = self._determine_pairs(self.prices)
+        pairs = self._determine_pairs(self.prices, existing_pairs)
         active_pairs = []
         for pair in pairs:
             hedge_ratio = self._hedge_ratio(self.prices[pair[0]], self.prices[pair[1]])
@@ -59,10 +62,11 @@ class PairsTradingSignal:
         if active_pairs_df.empty:
             return active_pairs_df
         
-        if active_pairs_df["RawWeight"].sum() == 0:
-            active_pairs_df["FinalWeight"] = 0
-        else:
-            active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+        # if active_pairs_df["RawWeight"].sum() == 0:
+        #     active_pairs_df["FinalWeight"] = 0
+        # else:
+        #     active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+        active_pairs_df["FinalWeight"] = self.per_pair_gross
         return active_pairs_df
 
     def _hedge_ratio(self, spread_a: pd.Series, spread_b: pd.Series) -> float:
@@ -87,7 +91,9 @@ class PairsTradingSignal:
         std = spread.rolling(self.pairs_lookback_horizon).std()
         return (spread - mean) / std
     
-    def _determine_pairs(self, prices: pd.DataFrame) -> list:
+    def _determine_pairs(self, 
+                         prices: pd.DataFrame,
+                         existing_pairs: list) -> list:
         """
         Identify pairs of assets that are historically correlated and cointegrated, 
         ideally within the same sector.
@@ -105,6 +111,8 @@ class PairsTradingSignal:
                 pvalue = coint(prices[pair_a], prices[pair_b])[1]
                 if pvalue < self.cointegration_threshold:
                     pairs.append((pair_a, pair_b))
+
+        pairs = list(set(pairs) | set(existing_pairs or []))
         return pairs
 
     def _determine_state(self, 

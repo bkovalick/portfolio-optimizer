@@ -132,20 +132,22 @@ class ExcelGenerator:
                     returns_series = deserialize_series(series["portfolio_returns"])
                     turnover_series = deserialize_series(series["portfolio_turnover"])
                     trades_series = deserialize_series(series["portfolio_trades"])
-
+                    benchmark_weights_series = deserialize_series(series["benchmark_wealth_factors"])
+                    benchmark_returns_series = deserialize_series(series["benchmark_returns"])
                     weights_df = weights_df.reset_index(drop=True)
                     min_len = min(
                         len(weights_df), len(wealth_series),
                         len(returns_series), len(turnover_series), len(trades_series)
                     )
                     weights_df = weights_df.iloc[:min_len].copy()
-
                     weights_df.insert(0, "Date", pd.to_datetime(wealth_series.index[:min_len]))
                     weights_df.insert(1, "Strategy", strategy_name)
-                    weights_df.insert(2, "WealthFactor", wealth_series.values[:min_len])
-                    weights_df.insert(3, "PortfolioReturns", returns_series.values[:min_len])
-                    weights_df.insert(4, "PortfolioTurnover", turnover_series.values[:min_len])
-                    weights_df.insert(5, "PortfolioTrades", trades_series.values[:min_len])
+                    weights_df.insert(2, "StrategyWealthFactors", wealth_series.values[:min_len])
+                    weights_df.insert(3, "BenchmarkWealthFactors", benchmark_weights_series.values[:min_len])
+                    weights_df.insert(4, "PortfolioReturns", returns_series.values[:min_len])
+                    weights_df.insert(5, "BenchmarkReturns", benchmark_returns_series.values[:min_len])
+                    weights_df.insert(6, "PortfolioTurnover", turnover_series.values[:min_len])
+                    weights_df.insert(7, "PortfolioTrades", trades_series.values[:min_len])
                     portfolio_dfs.append(weights_df)
                 except Exception as e:
                     print(f"Warning: could not build time series for {strategy_name}: {e}")
