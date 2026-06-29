@@ -50,6 +50,7 @@ class MarketStoreConfig:
     benchmark: Optional[str]
     risk_free_rate: float
     transaction_cost: float
+    apply_market_caps: bool
 
     @classmethod
     def from_dict(cls, d: dict):
@@ -60,7 +61,8 @@ class MarketStoreConfig:
             data_source = d.get("data_source", { "yfinance": None }),
             benchmark = d.get("benchmark", "SPY"),
             risk_free_rate = d.get("risk_free_rate", 0.0),
-            transaction_cost = d.get("transaction_cost", 0.0)
+            transaction_cost = d.get("transaction_cost", 0.0),
+            apply_market_caps = d.get("apply_market_caps", False)
         )
     
     def to_dict(self):
@@ -71,6 +73,7 @@ class MarketStoreConfig:
             "data_source": self.data_source,
             "benchmark": self.benchmark,
             "risk_free_rate": self.risk_free_rate,
-            "transaction_cost": self.transaction_cost
+            "transaction_cost": self.transaction_cost,
+            "apply_market_caps": self.apply_market_caps
         }
     

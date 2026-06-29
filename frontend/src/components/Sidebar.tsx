@@ -335,13 +335,15 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
             <div style={strategyNav}>
               {editedStrategies.map((s: any, i: number) => {
                 const isNew = !strategySet.strategies.find((orig: any) => orig.name === s.name)
+                const isFromPin = !!s._fromPin
                 return (
                   <div key={i} style={{ display: "flex", gap: 4 }}>
                     <button
                       style={{ ...(i === selectedIdx ? activeStrategyBtn : strategyBtn), flex: 1 }}
                       onClick={() => { setSelectedIdx(i); setJsonMode(false) }}>
                       {s.name}
-                      {isNew && <span style={newBadge}>new</span>}
+                      {isFromPin && <span style={pinnedBadge}>pinned</span>}
+                      {isNew && !isFromPin && <span style={newBadge}>new</span>}
                     </button>
                     <button
                       style={{ ...removeStrategyBtn, opacity: editedStrategies.length <= 1 ? 0.5 : 1, cursor: editedStrategies.length <= 1 ? "not-allowed" : "pointer" }}
@@ -358,6 +360,25 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
                     </div>
                 )
               })}
+              {pinnedRuns
+                .filter((r: any) => !editedStrategies.some((s: any) => s.name === r.strategy_name))
+                .map((r: any) => (
+                  <div key={r.run_id} style={{ display: "flex", gap: 4 }}>
+                    <button
+                      style={{ ...strategyBtn, flex: 1 }}
+                      onClick={() => {
+                        const config = { ...r.strategy_config, name: r.strategy_name, _fromPin: true }
+                        const updated = [...editedStrategies, config]
+                        setEditedStrategies(updated)
+                        setSelectedIdx(updated.length - 1)
+                        setJsonMode(false)
+                      }}>
+                      {r.strategy_name}
+                      <span style={pinnedBadge}>pinned</span>
+                    </button>
+                  </div>
+                ))
+              }
               <button style={addStrategyBtn} onClick={() => {
                 const template = JSON.parse(JSON.stringify(editedStrategies[0]))
                 template.name = `custom_strategy_${editedStrategies.length + 1}`
@@ -896,6 +917,10 @@ const addStrategyBtn: CSSProperties = {
 }
 const newBadge: CSSProperties = {
   fontSize: 9, color: "#3fb950", border: "1px solid #238636",
+  borderRadius: 3, padding: "0 4px", marginLeft: 6
+}
+const pinnedBadge: CSSProperties = {
+  fontSize: 9, color: "#58a6ff", border: "1px solid #1f6feb",
   borderRadius: 3, padding: "0 4px", marginLeft: 6
 }
 const removeStrategyBtn: CSSProperties = {

@@ -39,7 +39,7 @@ class RebalanceProblemBuilder:
                                tickers: list, 
                                n_assets: int) -> dict: 
         """ Determines the initial weight vector based on the rebalance configuration."""
-        if self.rebalance_config.apply_market_caps:
+        if self.market_state.apply_market_caps:
             return self._build_init_weights_from_mkt_caps()
 
         explicit_weights = self.rebalance_config.initial_weights

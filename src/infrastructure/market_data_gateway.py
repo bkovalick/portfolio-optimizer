@@ -75,9 +75,11 @@ class MarketDataGateway:
 
 class MarketDataStore:
     """ Environment to interact with market data gateway """
-    def __init__(self, market_store_config: MarketStoreConfig):
+    def __init__(self, 
+                 market_store_config: MarketStoreConfig):
         """ Initialize with market data gateway and parameters """
         self.transaction_cost = market_store_config.transaction_cost
+        self.apply_market_caps = market_store_config.apply_market_caps
         self._prices = MarketDataGateway.get_price_data(market_store_config)
         self._prices = self._prices.sort_index()
         self._prices = self._prices.dropna(how='all')
@@ -91,26 +93,30 @@ class MarketDataStore:
             n = len(self._prices)
             self._prices["CASH"] = (1 + daily_rate) ** pd.Series(range(n), index=self._prices.index)
 
-        tickers = self.prices.columns.tolist()
-        self._market_caps = MarketDataGateway.get_market_caps(tickers)
-        if "CASH" not in self._market_caps:
-            self._market_caps["CASH"] = 0
-
-        self._etf_market_caps = MarketDataGateway.get_etf_market_caps(tickers)
-        self._sectors = MarketDataGateway.get_sector_data(tickers)
-
     @property
     def prices(self) -> pd.DataFrame:
         return self._prices
     
     @property
     def market_caps(self) -> pd.Series:
+        if not self.apply_market_caps:
+            return pd.Series(dtype=float)
+        if self._market_caps is None:
+            self._market_caps = MarketDataGateway.get_market_caps(self.prices.columns.tolist())
+            if "CASH" not in self._market_caps:
+                self._market_caps["CASH"] = 0        
         return pd.Series(self._market_caps).fillna(0)
     
     @property
     def etf_market_caps(self) -> pd.Series:
+        if not self.apply_market_caps:
+            return pd.Series(dtype=float)
+        if self._etf_market_caps is None:
+            self._etf_market_caps = MarketDataGateway.get_etf_market_caps(self.prices.columns.tolist())
         return pd.Series(self._etf_market_caps).fillna(0)
     
     @property
     def sectors(self) -> pd.Series:
-        return pd.Series(self._sectors).fillna("Unknown")
+        if self._sectors is None:
+            self._sectors = MarketDataGateway.get_sector_data(self.prices.columns.tolist())
+        return pd.Series(self._sectors).fillna("Unknown")        
