@@ -171,9 +171,9 @@ class ExcelGenerator:
                     print(f"Warning: could not build rolling series for {strategy_name}: {e}")
 
         # Add benchmark summary row
-        benchmark_name = self.config.get("benchmark", "Benchmark")
-        risk_free = self.config.get("risk_free_rate", 0.03)
-        ann_factor = self.config.get("annual_trading_days", 252)
+        benchmark_name = self.config.benchmark
+        risk_free = self.config.risk_free_rate
+        ann_factor = 252
         for strategy_run in self.experiment.strategy_runs:
             series = strategy_run.result.series
             if "benchmark_wealth_factors" in series:

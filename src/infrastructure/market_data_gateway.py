@@ -73,6 +73,11 @@ class MarketDataGateway:
     def get_price_data_csv(csv_file):
         return pd.read_csv(csv_file)
 
+    @staticmethod
+    def get_sp500_tickers(self):
+        pass
+    
+
 class MarketDataStore:
     """ Environment to interact with market data gateway """
     def __init__(self, 
@@ -83,6 +88,9 @@ class MarketDataStore:
         self._prices = MarketDataGateway.get_price_data(market_store_config)
         self._prices = self._prices.sort_index()
         self._prices = self._prices.dropna(how='all')
+        self._market_caps = None
+        self._etf_market_caps = None
+        self._sectors = None
 
         if len(self._prices) == 0:
             raise ValueError("Market Data Store not created properly, please check inputs.")
@@ -104,7 +112,7 @@ class MarketDataStore:
         if self._market_caps is None:
             self._market_caps = MarketDataGateway.get_market_caps(self.prices.columns.tolist())
             if "CASH" not in self._market_caps:
-                self._market_caps["CASH"] = 0        
+                self._market_caps["CASH"] = 0
         return pd.Series(self._market_caps).fillna(0)
     
     @property
@@ -119,4 +127,4 @@ class MarketDataStore:
     def sectors(self) -> pd.Series:
         if self._sectors is None:
             self._sectors = MarketDataGateway.get_sector_data(self.prices.columns.tolist())
-        return pd.Series(self._sectors).fillna("Unknown")        
+        return pd.Series(self._sectors).fillna("Unknown")

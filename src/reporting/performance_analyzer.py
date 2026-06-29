@@ -110,7 +110,7 @@ class PerformanceAnalyzer:
             "max_drawdown_days": max_drawdown_days,
             "avg_drawdown": self._calculate_avg_drawdown(drawdown_returns),
             "turnover": portfolio_turnover.mean() * self._annual_trading_days,
-            "alpha": self._calculate_alpha(portfolio_returns, self._annual_trading_days, benchmark_index),
+            "alpha": self._calculate_alpha(portfolio_returns, self._annual_trading_days, benchmark_returns),
             "calmar_ratio": annualized_return / max_drawdown if max_drawdown != 0 else 0.0,
             "tracking_error": tracking_error,
             "information_ratio": information_ratio,
@@ -129,7 +129,7 @@ class PerformanceAnalyzer:
             "alpha_decay": self._calculate_alpha(
                 portfolio_returns[-self._annual_trading_days:],
                 self._annual_trading_days,
-                benchmark_index[-self._annual_trading_days:]
+                benchmark_returns[-self._annual_trading_days:]
             ) if len(portfolio_returns) >= self._annual_trading_days else None
         }
         return performance_metrics
