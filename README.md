@@ -31,6 +31,7 @@ src/
 │   │   ├── mean_reversion_signals.py
 │   │   ├── momentum_signals.py
 │   │   ├── moving_average_signals.py
+│   │   ├── pairs_trading_signal.py
 │   │   ├── risk_return_signals.py
 │   │   ├── signals.py
 │   │   └── volatility_forecasting_signals.py
@@ -38,8 +39,7 @@ src/
 │       ├── equal_weight_strategy.py
 │       ├── fixed_weight_strategy.py
 │       ├── istrategy.py
-│       ├── mean_reversion_strategy.py
-│       ├── mean_variance_strategy.py
+│       ├── pairs_trading_strategy.py
 │       └── systematic_strategy.py
 ├── infrastructure/
 │   ├── market_data_gateway.py
@@ -96,8 +96,8 @@ src/
 - **models/**: Pure data containers — no business logic. Key types: `RebalanceProblem`, `BacktestResult`, `MonitoringStats`, `StrategyRun`, `ExperimentModel`.
 - **reporting/**:
   - `PerformanceAnalyzer`: Computes annualised return, volatility, Sharpe, Sortino, Calmar, tracking error, information ratio, VaR/CVaR, drawdown metrics, alpha, alpha decay, and turnover.
-  - `SignalDecayMonitor`: Computes rolling IC (Spearman rank correlation), AR(1) half-life, and t-test significance of the mean IC.
-  - `report_generation.py`: Excel report generation.
+  - `LongOnlyICDiagnostics` / `PairsSpreadDiagnostics`: Both inherit `BaseMonitor`. `LongOnlyICDiagnostics` computes rolling Spearman IC, IC IR, hit rate, AR(1) half-life, and t-test significance. `PairsSpreadDiagnostics` computes IC from z-score vs realised return for pairs strategies.
+  - `report_generation.py`: Excel report generation via `ExcelGenerator` — exports summary metrics, time-series charts, and weights.
 - **services/**: Factories for optimizers and strategies; `RebalanceProblemBuilder` assembles all numeric inputs for the optimizer.
 - **simulation/**: `BacktestingEngine` drives the time-step loop. `MarketState` manages the investable universe (`prices`, `returns`) and exogenous series (`exogenous_universe`, e.g. VIX) separately. `parameter_sweeps.py` supports grid search over strategy configs.
 - **utils/**: Lookback window definitions (frequency-adjusted period counts), rebalance step logic.
@@ -171,11 +171,13 @@ portfolio = engine.run_backtest(rebalance_problem)
 ### 5. Signal Monitoring
 
 ```python
-from reporting.signal_monitoring import SignalDecayMonitor
+from reporting.signal_monitoring import LongOnlyICDiagnostics
 
-monitor = SignalDecayMonitor(forward_returns=fwd_returns, signal=signal_scores, window=20)
+# run is a BacktestRun with scores_history, fwd_history, and portfolio populated
+monitor = LongOnlyICDiagnostics(run=backtest_run)
 results = monitor.analyze()
-# results: { "ic_statistics": pd.Series, "half_life": float, "t_test": { "t_statistic", "p_value" } }
+# results: MonitoringStats with ic_statistics (Spearman IC series) and ic_summary
+# ic_summary keys: mean_ic, ic_ir, hit_rate, t_statistic, p_value, half_life, n_observations
 ```
 
 ### 6. Reporting
@@ -204,6 +206,9 @@ report.generate_report()
 
 - Python 3.10+
 - scikit-learn, scipy, numpy, pandas, yfinance, fastapi, uvicorn, cvxpy
+- openpyxl (Excel report generation)
+- duckdb (backtest result persistence)
+- pandas_datareader (Fama-French factor data)
 - See `requirements.txt` for pinned versions
 
 ## Setup
@@ -234,3 +239,9 @@ npm run dev
 ```
 
 The frontend runs on `http://localhost:5173` and expects the backend at `http://localhost:8000`.
+
+### Frontend Components
+- **`Sidebar`**: Experiment configuration, Strategy Lab (per-strategy editor with tooltips), pinned run management, and report download.
+- **`StrategyGrid`**: Table of all strategy runs with summary metrics (return, vol, Sharpe, max DD, turnover) and a benchmark row.
+- **`StrategyDetails`**: Cumulative wealth chart with dual-range slider, rolling metrics, and IC analysis panel.
+- **`AnalysisPanel`**: IC statistics, signal monitoring charts, and diagnostics display.

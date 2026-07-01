@@ -43,46 +43,36 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
 
 def compute_monitoring_stats(rebalance_problem: RebalanceProblem, 
                              run: BacktestRun) -> MonitoringStats | None:
-    """
-        Computes monitoring statistics based on the type of rebalance problem 
-        and the results of the backtest run.
-    """
+    """Computes monitoring statistics based on backtest results """
     monitor_ref = {
         "long_only": LongOnlyICDiagnostics,
         "pairs": PairsSpreadDiagnostics
     }.get(rebalance_problem.monitoring_type, None)
 
     if monitor_ref is None:
-        logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. Skipping monitoring stats computation.")
+        logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. \
+                       Skipping monitoring stats computation.")
         return None
     
-    scores_history_df = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
-    fwd_df = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
-    pairs_cache_df = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
-
-    if rebalance_problem.monitoring_type == "long_only":
-        if scores_history_df is None or scores_history_df.empty:
-            logger.warning("Scores history is empty or None. Skipping monitoring stats computation.")
-            return None
-
-        if fwd_df is None or fwd_df.empty:
-            logger.warning("Forward returns history is empty or None. Skipping monitoring stats computation.")
-            return None
-        
-        monitor = monitor_ref(
-            fwd_df,
-            scores_history_df
-        )
-    elif rebalance_problem.monitoring_type == "pairs":
-        if pairs_cache_df is None or pairs_cache_df.empty:
-            logger.warning("Pairs cache is empty or None. Skipping monitoring stats computation.")
-            return None
-            
-        monitor = monitor_ref(
-            pairs_cache_df
-        )
-
+    monitor = monitor_ref(run, risk_free_rate=rebalance_problem.risk_free_rate)
     return monitor.analyze()
+
+def compute_portfolio_statistics(metrics_computer: PerformanceAnalyzer,
+                                 rebalance_problem: RebalanceProblem,
+                                 run: BacktestRun,
+                                 market_store_config: MarketStoreConfig,
+                                 market_state_config: MarketStateConfig,
+                                 benchmark_index: pd.Series) -> tuple[dict, dict]:
+    """Compute portfolio statistics and monitoring stats for a given backtest run."""
+    portfolio_results = metrics_computer.compute(
+        run.portfolio, 
+        market_store_config, 
+        market_state_config,
+        benchmark_index
+    )
+
+    portfolio_staistics = compute_monitoring_stats(rebalance_problem, run)
+    return portfolio_results, portfolio_staistics
 
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig):
     logger.info(f"Running strategy worker for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
@@ -90,8 +80,8 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     portfolio = Portfolio()
     metrics_computer = PerformanceAnalyzer()
 
-    state_config = build_market_state_config(strategy_cfg)
-    market_state = MarketState(market_store, state_config)
+    market_state_config = build_market_state_config(strategy_cfg)
+    market_state = MarketState(market_store, market_state_config)
 
     rebalance_problem = RebalanceProblemBuilder(
         RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]), 
@@ -114,22 +104,23 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
 
     run = engine.run_backtest(rebalance_problem)
 
-    backtest_result = metrics_computer.compute(
+    benchmark_index = market_store.prices[market_store_config.benchmark]
+    portfolio_results, portfolio_statistics = compute_portfolio_statistics(
+        metrics_computer,
         rebalance_problem, 
-        run.portfolio, 
-        market_store_config, 
-        state_config,
-        market_store.prices[market_store_config.benchmark]
+        run,
+        market_store_config,
+        market_state_config,
+        benchmark_index
     )
-    
+
     run_id = str(uuid.uuid4())
-    monitoring_stats = compute_monitoring_stats(rebalance_problem, run)
     return StrategyRun(
         run_id, 
         strategy_cfg["name"],
         rebalance_problem, 
-        backtest_result, 
-        monitoring_stats,
+        portfolio_results, 
+        portfolio_statistics,
         {
             "timestamp": datetime.now(), 
             "username": "bkovalick", 
@@ -203,22 +194,23 @@ class ExperimentRunner:
 
         run = engine.run_backtest(rebalance_problem)
 
-        backtest_result = metrics_computer.compute(
+        benchmark_index = market_store.prices[market_store_config.benchmark]
+        portfolio_results, portfolio_statistics = compute_portfolio_statistics(
+            metrics_computer,
             rebalance_problem, 
-            run.portfolio, 
-            market_store_config, 
+            run,
+            market_store_config,
             state_config,
-            benchmark
+            benchmark_index
         )
 
         run_id = str(uuid.uuid4())
-        monitoring_stats = compute_monitoring_stats(rebalance_problem, run)
         return StrategyRun(
             run_id, 
             strategy_cfg["name"],
             rebalance_problem, 
-            backtest_result,
-            monitoring_stats, 
+            portfolio_results,
+            portfolio_statistics, 
             {
                 "timestamp": datetime.now(), 
                 "username": "bkovalick", 

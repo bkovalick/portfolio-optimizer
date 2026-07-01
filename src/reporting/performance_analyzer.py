@@ -3,19 +3,16 @@ import numpy as np
 
 from domain.portfolio.portfolio import Portfolio
 from models.backtest_result import BacktestResult
-from models.rebalance_problem import RebalanceProblem
 from models.market_config import MarketStoreConfig, MarketStateConfig
 
 class PerformanceAnalyzer:
     """Computes performance metrics from backtest results."""
     def compute(self,
-                rebalance_problem: RebalanceProblem,
                 portfolio: Portfolio,
                 market_store_config: MarketStoreConfig,
                 market_state_config: MarketStateConfig,
                 benchmark_index: pd.Series) -> BacktestResult:
         """ Build each piece of the backtest result """
-        self._rebalance_problem = rebalance_problem
         self._portfolio = portfolio
         self._market_store_config = market_store_config
         self._market_state_config = market_state_config
@@ -23,9 +20,8 @@ class PerformanceAnalyzer:
         self._annual_trading_days = market_state_config.annual_trading_days
         self._market_frequency = market_state_config.market_frequency
         self._rule = {"d": "B", "w": "W-FRI", "m": "ME"}[self._market_frequency]
-        performance_metrics = self._calculate_performance_metrics(
-            self._portfolio, self._market_store_config, self._benchmark_index
-        )
+        self._cached_benchmark_returns = self._compute_benchmark_returns()
+        performance_metrics = self._calculate_performance_metrics()
         performance_series = self._build_performance_series(performance_metrics)
         summary = self._build_summary(performance_metrics)
         return BacktestResult(
@@ -33,37 +29,32 @@ class PerformanceAnalyzer:
             series=performance_series
         )
     
-    @property
-    def benchmark_returns(self):
+    def _compute_benchmark_returns(self) -> pd.Series:
         portfolio_returns = self._portfolio.returns
         if portfolio_returns is None or len(portfolio_returns) == 0:
             raise ValueError("Portfolio Returns must exist in order to reindex Benchmark")
-
         benchmark_resampled = self._benchmark_index.resample(self._rule).last()
         benchmark_returns = benchmark_resampled.pct_change(fill_method=None).fillna(0)
         return benchmark_returns.reindex(portfolio_returns.index).fillna(0)
-    
+
     @property
-    def benchmark_wealth_factors(self):
-        if self.benchmark_returns is None or len(self.benchmark_returns) == 0:
-            raise ValueError("Missing Benchmark Returns")
-        
-        wealth_factors = (1 + self.benchmark_returns).cumprod()
-        return wealth_factors
+    def benchmark_returns(self) -> pd.Series:
+        return self._cached_benchmark_returns
+
+    @property
+    def benchmark_wealth_factors(self) -> pd.Series:
+        return (1 + self._cached_benchmark_returns).cumprod()
     
-    def _calculate_performance_metrics(self,
-                                       portfolio: Portfolio,
-                                       market_store_config: MarketStoreConfig,
-                                       benchmark_index: pd.Series) -> dict:
+    def _calculate_performance_metrics(self) -> dict:
         """Calculate performance metrics for the portfolio."""
-        risk_free_rate = market_store_config.risk_free_rate
-        portfolio_weights = portfolio.weights
-        portfolio_trades = portfolio.weights.diff().abs().fillna(0)
+        risk_free_rate = self._market_store_config.risk_free_rate
+        portfolio_weights = self._portfolio.weights
+        portfolio_trades = self._portfolio.weights.diff().abs().fillna(0)
         if isinstance(portfolio_trades, pd.DataFrame):
             portfolio_trades = portfolio_trades.sum(axis=1)
 
-        portfolio_returns = portfolio.returns
-        portfolio_turnover = portfolio.turnover
+        portfolio_returns = self._portfolio.returns
+        portfolio_turnover = self._portfolio.turnover
         benchmark_returns = self.benchmark_returns
         wealth_factors = (1 + portfolio_returns).cumprod()
         cumulative_returns = wealth_factors - 1
@@ -77,14 +68,9 @@ class PerformanceAnalyzer:
             if annualized_volatility != 0 else 0.0
         )
 
-        if self._annual_trading_days > 0:
-            drawdown_returns = cumulative_returns.iloc[self._annual_trading_days:]
-            rolling_dd = self._calculate_rolling_drawdown(drawdown_returns, self._annual_trading_days)
-            rolling_dd = align_series_to_dataframe(cumulative_returns.copy(), rolling_dd)
-        else:
-            drawdown_returns = cumulative_returns
-            rolling_dd = self._calculate_rolling_drawdown(drawdown_returns, self._annual_trading_days)
-            rolling_dd = align_series_to_dataframe(cumulative_returns.copy(), rolling_dd)
+        drawdown_returns = cumulative_returns.iloc[self._annual_trading_days:] if self._annual_trading_days > 0 else cumulative_returns
+        rolling_dd = self._calculate_rolling_drawdown(drawdown_returns, self._annual_trading_days)
+        rolling_dd = align_series_to_dataframe(cumulative_returns.copy(), rolling_dd)
 
         max_drawdown = abs(self._calculate_max_drawdown(drawdown_returns))
         max_drawdown_days = self._calculate_max_drawdown_days(drawdown_returns)
@@ -123,15 +109,20 @@ class PerformanceAnalyzer:
             "var_95": portfolio_returns.quantile(0.05),
             "var_97.5": portfolio_returns.quantile(0.025),
             "var_99": portfolio_returns.quantile(0.01),
-            "cvar_95": portfolio_returns[portfolio_returns < portfolio_returns.quantile(0.05)].mean() if len(portfolio_returns) > 0 else 0.0,
-            "cvar_97.5": portfolio_returns[portfolio_returns < portfolio_returns.quantile(0.025)].mean() if len(portfolio_returns) > 0 else 0.0,
-            "cvar_99": portfolio_returns[portfolio_returns < portfolio_returns.quantile(0.01)].mean() if len(portfolio_returns) > 0 else 0.0,
+        }
+        var_95  = performance_metrics["var_95"]
+        var_975 = performance_metrics["var_97.5"]
+        var_99  = performance_metrics["var_99"]
+        performance_metrics.update({
+            "cvar_95":   portfolio_returns[portfolio_returns < var_95 ].mean() if (portfolio_returns < var_95 ).any() else 0.0,
+            "cvar_97.5": portfolio_returns[portfolio_returns < var_975].mean() if (portfolio_returns < var_975).any() else 0.0,
+            "cvar_99":   portfolio_returns[portfolio_returns < var_99 ].mean() if (portfolio_returns < var_99 ).any() else 0.0,
             "alpha_decay": self._calculate_alpha(
                 portfolio_returns[-self._annual_trading_days:],
                 self._annual_trading_days,
                 benchmark_returns[-self._annual_trading_days:]
-            ) if len(portfolio_returns) >= self._annual_trading_days else None
-        }
+            ) if len(portfolio_returns) >= self._annual_trading_days else None,
+        })
         return performance_metrics
     
     def _calculate_sortino_ratio(self, annualized_return: float, portfolio_returns: pd.Series, risk_free_rate: float) -> float:
@@ -176,9 +167,9 @@ class PerformanceAnalyzer:
         rolling_return = (1 + returns).rolling(window=window).apply(np.prod, raw=True) - 1
         return rolling_return
 
-    def _calculate_rolling_volatility(self, returns: pd.Series, window: int):
-        """Calculate rolling volatility over a specified window."""
-        return returns.rolling(window=window).std() * np.sqrt(window)
+    def _calculate_rolling_volatility(self, returns: pd.Series, window: int) -> pd.Series:
+        """Calculate annualised rolling volatility over a specified window."""
+        return returns.rolling(window=window).std() * np.sqrt(self._annual_trading_days)
 
     def _calculate_rolling_sharpe_ratio(self, returns: pd.Series, risk_free_rate: float, window: int):
         """Calculate rolling Sharpe ratio over a specified window, annualised by annual_trading_days."""
@@ -219,9 +210,6 @@ class PerformanceAnalyzer:
 
     def _build_performance_series(self, performance_metrics: dict) -> dict:
         """Create performance series dictionary for BacktestResult dataclass."""
-        if performance_metrics is None:
-            return {}
-        
         try:
             _w = performance_metrics["portfolio_weights"]
             port_weights_long = pd.DataFrame({
@@ -248,11 +236,8 @@ class PerformanceAnalyzer:
             "rolling_turnover": performance_metrics["rolling_turnover"]
         }
 
-    def _build_summary(self, performance_metrics) -> dict:
+    def _build_summary(self, performance_metrics: dict) -> dict:
         """Create summary dictionary for BacktestResult dataclass."""
-        if performance_metrics is None:
-            return {}
-        
         return {
             "return": performance_metrics["return"],
             "volatility": performance_metrics["volatility"],

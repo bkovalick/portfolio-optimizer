@@ -31,7 +31,10 @@ def deserialize_dataframe(data) -> pd.DataFrame:
 class ExcelGenerator:
     def __init__(self, experiment: Experiment, buffer: BytesIO):
         self.experiment = experiment
-        self.config = experiment.market_config
+        cfg = experiment.market_config
+        if not isinstance(cfg, dict):
+            cfg = cfg.model_dump() if hasattr(cfg, "model_dump") else (cfg.dict() if hasattr(cfg, "dict") else vars(cfg))
+        self.config = cfg
         self.buffer = buffer
 
     def generate_report(self):
@@ -141,12 +144,17 @@ class ExcelGenerator:
                         len(returns_series), len(turnover_series), len(trades_series)
                     )
                     weights_df = weights_df.iloc[:min_len].copy()
-                    weights_df.insert(0, "Date", pd.to_datetime(wealth_series.index[:min_len]))
+                    date_idx = pd.to_datetime(wealth_series.index[:min_len])
+                    # Align benchmark to the strategy's exact date index so every
+                    # strategy row carries the same benchmark value for the same date.
+                    bm_wealth_aligned = benchmark_weights_series.reindex(wealth_series.index[:min_len])
+                    bm_returns_aligned = benchmark_returns_series.reindex(wealth_series.index[:min_len])
+                    weights_df.insert(0, "Date", date_idx)
                     weights_df.insert(1, "Strategy", strategy_name)
                     weights_df.insert(2, "StrategyWealthFactors", wealth_series.values[:min_len])
-                    weights_df.insert(3, "BenchmarkWealthFactors", benchmark_weights_series.values[:min_len])
+                    weights_df.insert(3, "BenchmarkWealthFactors", bm_wealth_aligned.values)
                     weights_df.insert(4, "PortfolioReturns", returns_series.values[:min_len])
-                    weights_df.insert(5, "BenchmarkReturns", benchmark_returns_series.values[:min_len])
+                    weights_df.insert(5, "BenchmarkReturns", bm_returns_aligned.values)
                     weights_df.insert(6, "PortfolioTurnover", turnover_series.values[:min_len])
                     weights_df.insert(7, "PortfolioTrades", trades_series.values[:min_len])
                     portfolio_dfs.append(weights_df)
@@ -171,9 +179,9 @@ class ExcelGenerator:
                     print(f"Warning: could not build rolling series for {strategy_name}: {e}")
 
         # Add benchmark summary row
-        benchmark_name = self.config.benchmark
-        risk_free = self.config.risk_free_rate
-        ann_factor = 252
+        benchmark_name = self.config.get("benchmark", "Benchmark")
+        risk_free = self.config.get("risk_free_rate", 0.03)
+        ann_factor = self.config.get("annual_trading_days", 252)
         for strategy_run in self.experiment.strategy_runs:
             series = strategy_run.result.series
             if "benchmark_wealth_factors" in series:

@@ -3,8 +3,11 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
 from scipy import stats
+import statsmodels.api as sm
+from pandas_datareader.famafrench import FamaFrenchReader
 
 from models.monitoring_stats import MonitoringStats
+from models.backtest_run import BacktestRun
 
 class BaseMonitor(abc.ABC):
     @abc.abstractmethod
@@ -12,9 +15,12 @@ class BaseMonitor(abc.ABC):
 
 class PairsSpreadDiagnostics(BaseMonitor):
     def __init__(self, 
-                 pairs_cache: pd.DataFrame):
-        self.pairs_cache = pairs_cache.copy()
-        self.pairs_cache["FwdReturn"] = self.pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
+                 run: BacktestRun):
+        self._run = run
+        self._pairs_cache = pd.DataFrame(run.pairs_cache) if run.pairs_cache is not None else None
+        if self._pairs_cache is None or self._pairs_cache.empty:
+            raise ValueError("Pairs cache is empty or None. Cannot compute diagnostics.")
+        self._pairs_cache["FwdReturn"] = self._pairs_cache.groupby("Pair")["RealizedReturn"].shift(-1)
 
     def analyze(self) -> MonitoringStats:
         ic_sp_series = self._compute_ic_statistics()
@@ -29,7 +35,7 @@ class PairsSpreadDiagnostics(BaseMonitor):
         forward returns for each date, then applies a rolling mean to smooth the series.
         """
         clean = (
-            self.pairs_cache[["Zscore", "FwdReturn"]]
+            self._pairs_cache[["Zscore", "FwdReturn"]]
             .replace([np.inf, -np.inf], np.nan)
             .dropna()
         )
@@ -39,14 +45,26 @@ class PairsSpreadDiagnostics(BaseMonitor):
 class LongOnlyICDiagnostics(BaseMonitor):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
-                 forward_returns: pd.DataFrame,
-                 signal: pd.DataFrame):
-        self.forward_data = forward_returns
-        self.scores = signal
+                 run: BacktestRun,
+                 risk_free_rate: float = 0.03):
+        self._run = run
+        self._risk_free_rate = risk_free_rate
+        self._scores = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
+        self._forward_data = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
+        self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
 
+        if self._scores is None or self._scores.empty:
+            raise ValueError("Scores history is empty or None. Cannot compute diagnostics.")
+        
+        if self._forward_data is None or self._forward_data.empty:
+            raise ValueError("Forward returns history is empty or None. Cannot compute diagnostics.")
+
+        if self._portfolio_returns is None or self._portfolio_returns.empty:
+            raise ValueError("Portfolio returns are empty or None. Cannot compute diagnostics.")
+        
     def analyze(self) -> MonitoringStats:
         ic_sp_series = self._compute_ic_statistics()
-        factor_regression = self._ols_fama_french_factor_regression() # need strategy returns
+        factor_regression = self._ols_fama_french_factor_regression()
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()},
             ic_summary=self._compute_ic_summary(ic_sp_series)
@@ -58,12 +76,12 @@ class LongOnlyICDiagnostics(BaseMonitor):
         forward returns for each date, then applies a rolling mean to smooth the series.
         """
         ic_sp_values = []
-        for date in self.scores.index:
-            if date not in self.forward_data.index:
+        for date in self._scores.index:
+            if date not in self._forward_data.index:
                 continue
             
-            scores = self.scores.loc[date].dropna()
-            fwd_data = self.forward_data.loc[date].dropna()
+            scores = self._scores.loc[date].dropna()
+            fwd_data = self._forward_data.loc[date].dropna()
             common = scores.index.intersection(fwd_data.index)
             if len(common) < 5:
                 continue
@@ -115,4 +133,24 @@ class LongOnlyICDiagnostics(BaseMonitor):
         return half_life
     
     def _ols_fama_french_factor_regression(self):
-        pass
+        ff_factors = self._get_fama_french_three_factors
+        merged_data = pd.merge(self._portfolio_returns, ff_factors, left_index=True, right_index=True)
+        merged_data['Asset_Excess_Return'] = merged_data['Returns'] - self._risk_free_rate / 252  # Assuming daily returns and annualized risk-free rate
+        X = merged_data[['Mkt-RF', 'SMB', 'HML']]
+        X = sm.add_constant(X) # Add a constant for the alpha
+        y = merged_data['Asset_Excess_Return']
+        model = sm.OLS(y, X).fit()
+        summary = model.summary()
+        return summary
+    
+    @property
+    def _get_fama_french_three_factors(self):
+        start_date = self._portfolio_returns.index.iloc[0]
+        end_date = self._portfolio_returns.index.iloc[-1]
+        ff_dataset = FamaFrenchReader('F-F_Research_Data_Factors', start=start_date, end=end_date)
+        if ff_dataset is None:
+            raise ValueError("Fama-French dataset could not be retrieved. \
+                             Please check your internet connection or the availability of the dataset.")
+
+        return ff_dataset.read()[0] # Returns a dataframe with Mkt-RF, SMB, HML, and RF
+        
