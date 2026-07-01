@@ -413,7 +413,7 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
         ))}
         {hasBenchmark && (
           <div style={legendItem}>
-            <span style={{ ...legendDot, backgroundColor: "#8b949e" }} />
+            <span style={{ width: 16, height: 0, borderTop: "2px dashed #8b949e", display: "inline-block" }} />
             <span style={legendText}>Benchmark</span>
           </div>
         )}

@@ -43,6 +43,7 @@ class MarketStateConfig:
 
 @dataclass(frozen=True)
 class MarketStoreConfig:
+    use_sp500_constituents: bool
     tickers: List[Any]
     start_date: str
     end_date: str
@@ -55,7 +56,8 @@ class MarketStoreConfig:
     @classmethod
     def from_dict(cls, d: dict):
         return cls(
-            tickers = d.get("tickers", ["AAPL"]),
+            use_sp500_constituents = d.get("use_sp500_constituents", False),
+            tickers = d.get("tickers", []),
             start_date = d.get("start_date", "2005-01-01"),
             end_date = d.get("end_date", "2026-02-19"),
             data_source = d.get("data_source", { "yfinance": None }),
@@ -67,6 +69,7 @@ class MarketStoreConfig:
     
     def to_dict(self):
         return {
+            "use_sp500_constituents": self.use_sp500_constituents,
             "tickers": self.tickers,
             "start_date": self.start_date,
             "end_date": self.end_date,

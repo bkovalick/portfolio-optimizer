@@ -92,7 +92,7 @@ class ExcelGenerator:
                 row[k] = v
             ic_summary_rows.append(row)
 
-            ic_statistics_df = deserialize_dataframe(strategy_run.monitoring_stats.ic_statistics)
+            ic_statistics_df = deserialize_dataframe(strategy_run.monitoring_stats.ic_statistics).T
             if len(ic_statistics_df) > 1:
                 ic_statistics_df.insert(0, "Date", pd.to_datetime(ic_statistics_df.index))
                 ic_statistics_df = ic_statistics_df.reset_index(drop=True)

@@ -46,12 +46,11 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
     def analyze(self) -> MonitoringStats:
         ic_sp_series = self._compute_ic_statistics()
-        # need to add factor regression
         factor_regression = self._ols_fama_french_factor_regression() # need strategy returns
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()},
             ic_summary=self._compute_ic_summary(ic_sp_series)
-        )        
+        )
 
     def _compute_ic_statistics(self) -> pd.Series:
         """

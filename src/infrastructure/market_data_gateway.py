@@ -6,7 +6,10 @@ class MarketDataGateway:
     """ Data gateway for fetching market data using yfinance """
     @staticmethod
     def get_price_data(market_store_config: MarketStoreConfig):
-        tickers = market_store_config.tickers
+        # use_sp500_constituents = market_store_config.use_sp500_constituents
+        use_sp500_constituents = False # this pull doesn't work in parallel due to pickling issue and sequential to an access issue
+        tickers = MarketDataGateway.get_sp500_tickers() if \
+            use_sp500_constituents else market_store_config.tickers
         benchmark_ticker = market_store_config.benchmark
         if benchmark_ticker not in tickers:
             tickers.append(benchmark_ticker)
@@ -74,8 +77,15 @@ class MarketDataGateway:
         return pd.read_csv(csv_file)
 
     @staticmethod
-    def get_sp500_tickers(self):
-        pass
+    def get_sp500_tickers() -> list:
+        """Fetches the current S&P 500 ticker list from Wikipedia."""
+        url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+        table = pd.read_html(url)
+        df = table[0]
+
+        # Clean tickers (yfinance uses '-' instead of '.' for classes like BRK.B)
+        tickers = df["Symbol"].str.replace(".", "-", regex=False).tolist()
+        return tickers
     
 
 class MarketDataStore:

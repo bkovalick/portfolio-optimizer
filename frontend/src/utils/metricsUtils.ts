@@ -30,6 +30,7 @@ export interface DeserializedSeries {
   turnover: { date: string; value: number }[]
   wealth: { date: string; value: number }[]
   benchmark: { date: string; value: number }[]
+  benchmark_returns: { date: string; value: number }[]
 }
 
 export interface DeserializedIcSeries {
@@ -64,6 +65,7 @@ export function getCachedSeries(run: any): DeserializedSeries {
     turnover: deserializeToArray(run.result.series?.portfolio_turnover),
     wealth: deserializeToArray(run.result.series?.portfolio_wealth_factors),
     benchmark: deserializeToArray(run.result.series?.benchmark_wealth_factors),
+    benchmark_returns: deserializeToArray(run.result.series?.benchmark_returns),
   }
   seriesCache.set(run, series)
   return series
