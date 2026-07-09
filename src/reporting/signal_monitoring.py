@@ -134,16 +134,19 @@ class LongOnlyICDiagnostics(BaseMonitor):
     
     def _ols_fama_french_factor_regression(self):
         """
-        Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors.
+        Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors plus momentum (FF5 + MOM).
         """
         ff_factors = self._get_fama_french_five_factors
         ff_factors.index = ff_factors.index.to_timestamp()
+        mom_factor = self._get_momentum_factor
+        mom_factor.index = mom_factor.index.to_timestamp()
+        factors = ff_factors.join(mom_factor, how='inner')
         regression_data = pd.merge(
-            self._portfolio_returns.to_frame("Returns"), ff_factors, left_index=True, right_index=True
+            self._portfolio_returns.to_frame("Returns"), factors, left_index=True, right_index=True
         )
         regression_data['Asset_Excess_Return'] = regression_data['Returns'] - \
             self._risk_free_rate / self._trading_days_per_year
-        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA']]
+        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']]
         X = sm.add_constant(X)
         y = regression_data['Asset_Excess_Return']
         model = sm.OLS(y, X).fit()
@@ -161,6 +164,13 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
         return ff_dataset.read()[0]
     
+    @property
+    def _get_momentum_factor(self):
+        start_date = self._portfolio_returns.index[0]
+        end_date = self._portfolio_returns.index[-1]
+        mom_dataset = FamaFrenchReader('F-F_Momentum_Factor_daily', start=start_date, end=end_date)
+        return mom_dataset.read()[0][['Mom']]
+
     @property
     def _trading_days_per_year(self) -> int:
         n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
