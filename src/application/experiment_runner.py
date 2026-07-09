@@ -54,7 +54,7 @@ def compute_monitoring_stats(rebalance_problem: RebalanceProblem,
                        Skipping monitoring stats computation.")
         return None
     
-    monitor = monitor_ref(run, risk_free_rate=rebalance_problem.risk_free_rate)
+    monitor = monitor_ref(run) # need the risk free rate but 3% default is being used for now.
     return monitor.analyze()
 
 def compute_portfolio_statistics(metrics_computer: PerformanceAnalyzer,
@@ -103,15 +103,13 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     )
 
     run = engine.run_backtest(rebalance_problem)
-
-    benchmark_index = market_store.prices[market_store_config.benchmark]
     portfolio_results, portfolio_statistics = compute_portfolio_statistics(
         metrics_computer,
         rebalance_problem, 
         run,
         market_store_config,
         market_state_config,
-        benchmark_index
+        benchmark
     )
 
     run_id = str(uuid.uuid4())
@@ -193,15 +191,13 @@ class ExperimentRunner:
         )
 
         run = engine.run_backtest(rebalance_problem)
-
-        benchmark_index = market_store.prices[market_store_config.benchmark]
         portfolio_results, portfolio_statistics = compute_portfolio_statistics(
             metrics_computer,
             rebalance_problem, 
             run,
             market_store_config,
             state_config,
-            benchmark_index
+            benchmark
         )
 
         run_id = str(uuid.uuid4())

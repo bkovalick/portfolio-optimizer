@@ -133,24 +133,37 @@ class LongOnlyICDiagnostics(BaseMonitor):
         return half_life
     
     def _ols_fama_french_factor_regression(self):
-        ff_factors = self._get_fama_french_three_factors
-        merged_data = pd.merge(self._portfolio_returns, ff_factors, left_index=True, right_index=True)
-        merged_data['Asset_Excess_Return'] = merged_data['Returns'] - self._risk_free_rate / 252  # Assuming daily returns and annualized risk-free rate
-        X = merged_data[['Mkt-RF', 'SMB', 'HML']]
-        X = sm.add_constant(X) # Add a constant for the alpha
-        y = merged_data['Asset_Excess_Return']
+        """
+        Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors.
+        """
+        ff_factors = self._get_fama_french_five_factors
+        ff_factors.index = ff_factors.index.to_timestamp()
+        regression_data = pd.merge(
+            self._portfolio_returns.to_frame("Returns"), ff_factors, left_index=True, right_index=True
+        )
+        regression_data['Asset_Excess_Return'] = regression_data['Returns'] - \
+            self._risk_free_rate / self._trading_days_per_year
+        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA']]
+        X = sm.add_constant(X)
+        y = regression_data['Asset_Excess_Return']
         model = sm.OLS(y, X).fit()
         summary = model.summary()
         return summary
     
     @property
-    def _get_fama_french_three_factors(self):
-        start_date = self._portfolio_returns.index.iloc[0]
-        end_date = self._portfolio_returns.index.iloc[-1]
-        ff_dataset = FamaFrenchReader('F-F_Research_Data_Factors', start=start_date, end=end_date)
+    def _get_fama_french_five_factors(self):
+        start_date = self._portfolio_returns.index[0]
+        end_date = self._portfolio_returns.index[-1]
+        ff_dataset = FamaFrenchReader('F-F_Research_Data_5_Factors_2x3_daily', start=start_date, end=end_date)
         if ff_dataset is None:
             raise ValueError("Fama-French dataset could not be retrieved. \
                              Please check your internet connection or the availability of the dataset.")
 
-        return ff_dataset.read()[0] # Returns a dataframe with Mkt-RF, SMB, HML, and RF
+        return ff_dataset.read()[0]
+    
+    @property
+    def _trading_days_per_year(self) -> int:
+        n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
+        trading_days_per_year = round(len(self._portfolio_returns) / n_years)
+        return trading_days_per_year       
         
