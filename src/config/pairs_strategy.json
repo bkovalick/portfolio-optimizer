@@ -1,0 +1,52 @@
+{
+  "_description": "Run a basic Pairs Trading Strategy",
+  "database_name": "research.duckdb",
+  "market_store_config": {
+    "start_date": "2024-01-01",
+    "end_date": "2026-06-18",
+    "data_source": {
+      "yfinance": null
+    },
+    "benchmark": "SPY",
+    "risk_free_rate": 0.03,
+    "transaction_cost": 0.005,
+    "use_sp500_constituents": true,
+    "tickers": []
+  },
+  "strategies": [
+    {
+      "name": "pairs_trading_strat",
+      "market_state_config": {
+        "lookback_window_key": "2m",
+        "market_frequency": "d",
+        "cash_allocation": 1.0,
+        "exogenous_tickers": [
+          "^VIX"
+        ],
+        "investment_universe": [
+          "TFC", "ZION"
+        ]
+      },
+      "signals_config": {
+        "pairs_trading": {
+          "pairs_lookback_horizon": 20,
+          "cointegration_threshold": 0.05,
+          "correlation_filter": 0.70,
+          "pairs_entry": 1.25,
+          "pairs_exit": 0.5,
+          "pairs_stop_loss": 3.5
+        }
+      },
+      "rebalance_problem": {
+        "starting_portfolio_value": 100000,
+        "cash_infusion": 0,
+        "optimizer_type": "None",
+        "rebalance_frequency": "daily",
+        "apply_market_caps": false,
+        "strategy_type": "pairs_trading_strategy",
+        "signal_source": "pairs_trading",
+        "monitoring_type": "pairs"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react"
 import type { CSSProperties } from "react"
 import type React from "react"
-import { getEffectiveSummary } from "../utils/metricsUtils"
+import { getEffectiveSummary, getCachedSeries, computeMetrics } from "../utils/metricsUtils"
 import type { DateWindow } from "../utils/metricsUtils"
 
 type SortKey = "strategy_name" | "return" | "volatility" | "sharpe_ratio" | "max_drawdown" | "turnover"
@@ -41,6 +41,13 @@ export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWin
     })
     return map
   }, [runs, dateWindow])
+
+  const benchmarkMetrics = useMemo(() => {
+    const benchRun = runs.find((r: any) => getCachedSeries(r).benchmark_returns.length > 0)
+    if (!benchRun) return null
+    const cached = getCachedSeries(benchRun)
+    return computeMetrics(cached.benchmark_returns, [], cached.benchmark)
+  }, [runs])
 
   const sortedRuns = useMemo(() => {
     return [...runs].sort((a, b) => {
@@ -109,6 +116,20 @@ export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWin
                 </tr>
               )
             })}
+            {benchmarkMetrics && (
+              <tr key="__benchmark" style={benchmarkRow}>
+                <td style={leftCell}>
+                  <span style={{ ...colorDot, backgroundColor: "#8b949e", borderRadius: 2 }} />
+                  Benchmark
+                </td>
+                <td style={rightCellGreen(benchmarkMetrics.return)}>{formatPct(benchmarkMetrics.return)}</td>
+                <td style={rightCell}>{formatPct(benchmarkMetrics.volatility)}</td>
+                <td style={rightCell}>{formatNumber(benchmarkMetrics.sharpe_ratio)}</td>
+                <td style={rightCellRed(benchmarkMetrics.max_drawdown)}>{formatPct(benchmarkMetrics.max_drawdown)}</td>
+                <td style={rightCell}>—</td>
+                <td style={rightCell} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -171,6 +192,7 @@ const headerRow: CSSProperties = { borderBottom: "1px solid #2a2f3a" }
 const leftHeader: CSSProperties = { padding: "8px 10px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#8b949e", cursor: "pointer", userSelect: "none" }
 const rightHeader: CSSProperties = { padding: "8px 10px", textAlign: "right", fontSize: 12, fontWeight: 600, cursor: "pointer", userSelect: "none" }
 const row: CSSProperties = { borderBottom: "1px solid #21262d", cursor: "pointer" }
+const benchmarkRow: CSSProperties = { borderBottom: "1px solid #21262d", borderTop: "1px solid #30363d", opacity: 0.8 }
 const leftCell: CSSProperties = { padding: "8px 10px", textAlign: "left", fontSize: 12, display: "flex", alignItems: "flex-start", gap: 6 }
 const rightCell: CSSProperties = { padding: "8px 10px", textAlign: "right", fontSize: 12 }
 const rightCellGreen = (val: number | null | undefined): CSSProperties => ({

@@ -23,6 +23,7 @@ class MarketState:
         self.cash_allocation = state_config.cash_allocation
         self.annual_trading_days = state_config.annual_trading_days
         self.security_to_etf_map = state_config.security_to_etf_map
+        self.apply_market_caps = store.apply_market_caps
         self.transaction_cost = store.transaction_cost
         self.investment_prices = self._resample(self.market_frequency, self._parse_universe(self.investment_universe))
         self.investment_returns = self.investment_prices.pct_change(fill_method=None).fillna(0)

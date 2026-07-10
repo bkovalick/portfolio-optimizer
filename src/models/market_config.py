@@ -43,6 +43,7 @@ class MarketStateConfig:
 
 @dataclass(frozen=True)
 class MarketStoreConfig:
+    use_sp500_constituents: bool
     tickers: List[Any]
     start_date: str
     end_date: str
@@ -50,27 +51,32 @@ class MarketStoreConfig:
     benchmark: Optional[str]
     risk_free_rate: float
     transaction_cost: float
+    apply_market_caps: bool
 
     @classmethod
     def from_dict(cls, d: dict):
         return cls(
-            tickers = d.get("tickers", ["AAPL"]),
+            use_sp500_constituents = d.get("use_sp500_constituents", False),
+            tickers = d.get("tickers", []),
             start_date = d.get("start_date", "2005-01-01"),
             end_date = d.get("end_date", "2026-02-19"),
             data_source = d.get("data_source", { "yfinance": None }),
             benchmark = d.get("benchmark", "SPY"),
             risk_free_rate = d.get("risk_free_rate", 0.0),
-            transaction_cost = d.get("transaction_cost", 0.0)
+            transaction_cost = d.get("transaction_cost", 0.0),
+            apply_market_caps = d.get("apply_market_caps", False)
         )
     
     def to_dict(self):
         return {
+            "use_sp500_constituents": self.use_sp500_constituents,
             "tickers": self.tickers,
             "start_date": self.start_date,
             "end_date": self.end_date,
             "data_source": self.data_source,
             "benchmark": self.benchmark,
             "risk_free_rate": self.risk_free_rate,
-            "transaction_cost": self.transaction_cost
+            "transaction_cost": self.transaction_cost,
+            "apply_market_caps": self.apply_market_caps
         }
     

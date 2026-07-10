@@ -121,7 +121,8 @@ class MLPredictorSignal(RiskReturnSignals):
             return super().mean_returns()
         if self.predictor_state.scores is None:
             return super().mean_returns()
-        scores = self.predictor_state.scores.to_numpy(dtype=float)
+        universe = self.market_state.investment_universe
+        scores = self.predictor_state.scores.reindex(universe).to_numpy(dtype=float)
         if np.isnan(scores).any():
             fallback = super().mean_returns()
             nan_mask = np.isnan(scores)

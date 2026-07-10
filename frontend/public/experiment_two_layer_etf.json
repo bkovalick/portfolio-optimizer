@@ -10,6 +10,7 @@
     "benchmark": "SPY",
     "risk_free_rate": 0.03,
     "transaction_cost": 0.003,
+    "apply_market_caps": false,
     "tickers": [
       "^VIX",
       "SPY",
@@ -1377,7 +1378,6 @@
           "TLT":  0.010
         },
         "apply_max_return_objective": true,
-        "apply_market_caps": false,
         "constraints": {
           "concentration_strength": 0,
           "risk_aversion": 0.5,

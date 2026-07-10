@@ -53,6 +53,12 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
     return Array.from(dateSet).sort()
   }, [runs])  
 
+  // Whether any run carries a benchmark wealth series in its payload
+  const hasBenchmark = useMemo(
+    () => runs.some((r: any) => getCachedSeries(r).benchmark.length > 0),
+    [runs]
+  )
+
   // Build chart data — each run rebases to its own first available date
   const data = useMemo(() => {
     const runMaps: Record<string, Record<string, number>> = {}
@@ -68,6 +74,17 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
         : sortedDates[0]
     })
 
+    const benchSource = runs.find((r: any) => getCachedSeries(r).benchmark.length > 0)
+    const benchMap: Record<string, number> = {}
+    let benchRebaseDate = ""
+    if (benchSource) {
+      getCachedSeries(benchSource).benchmark.forEach(p => { benchMap[p.date] = p.value })
+      const sorted = Object.keys(benchMap).sort()
+      benchRebaseDate = dateWindow?.start
+        ? (sorted.find(d => d >= dateWindow.start) ?? sorted[0])
+        : sorted[0]
+    }
+
     return allDates.map(date => {
       const row: any = { date }
       runs.forEach(run => {
@@ -77,6 +94,9 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
         const currentValue = map[date] ?? null
         if (rebaseValue && currentValue) row[run.run_id] = currentValue / rebaseValue
       })
+      const bRebase = benchMap[benchRebaseDate] ?? null
+      const bCurrent = benchMap[date] ?? null
+      if (bRebase && bCurrent) row.__benchmark = bCurrent / bRebase
       return row
     })
   }, [runs, allDates, dateWindow])
@@ -228,6 +248,13 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
                   }}>
                     <div style={{ color: "#8b949e", marginBottom: 6 }}>{formatDate(label)}</div>
                     {payload.map((entry: any) => {
+                      if (entry.dataKey === "__benchmark") {
+                        return (
+                          <div key="__benchmark" style={{ color: entry.stroke, marginBottom: 2 }}>
+                            Benchmark: {entry.value?.toFixed(3)}x
+                          </div>
+                        )
+                      }
                       const run = runs.find((r: any) => r.run_id === entry.dataKey)
                       const name = run ? formatStrategyName(run.strategy_name) : entry.dataKey
                       return (
@@ -251,6 +278,17 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
                 connectNulls={false}
               />
             ))}
+            {hasBenchmark && (
+              <Line
+                type="monotone"
+                dataKey="__benchmark"
+                stroke="#8b949e"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                dot={false}
+                connectNulls={false}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -373,6 +411,12 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
             <span style={legendText}>{formatStrategyName(run.strategy_name)}</span>
           </div>
         ))}
+        {hasBenchmark && (
+          <div style={legendItem}>
+            <span style={{ width: 16, height: 0, borderTop: "2px dashed #8b949e", display: "inline-block" }} />
+            <span style={legendText}>Benchmark</span>
+          </div>
+        )}
       </div>
     </div>
   )

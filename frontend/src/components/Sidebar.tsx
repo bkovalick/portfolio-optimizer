@@ -4,7 +4,7 @@ import type { CSSProperties } from "react"
 
 type Tab = "experiment" | "lab"
 
-export default function Sidebar({ setExperiment, experiment }: any) {
+export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], onClearPinned }: any) {
   const [tab, setTab] = useState<Tab>("experiment")
   const [loading, setLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -57,7 +57,12 @@ export default function Sidebar({ setExperiment, experiment }: any) {
     if (!experiment) return
   setDownloadProgress(0)
   try {
-    const res = await axios.post("http://localhost:8000/download", experiment, {
+    const currentRunIds = new Set((experiment.strategy_runs ?? []).map((r: any) => r.run_id))
+    const extraPinned = (pinnedRuns as any[]).filter((r: any) => !currentRunIds.has(r.run_id))
+    const payload = extraPinned.length > 0
+      ? { ...experiment, strategy_runs: [...(experiment.strategy_runs ?? []), ...extraPinned] }
+      : experiment
+    const res = await axios.post("http://localhost:8000/download", payload, {
       responseType: "blob",
       onDownloadProgress: (e) => {
         if (e.total) {
@@ -330,13 +335,15 @@ export default function Sidebar({ setExperiment, experiment }: any) {
             <div style={strategyNav}>
               {editedStrategies.map((s: any, i: number) => {
                 const isNew = !strategySet.strategies.find((orig: any) => orig.name === s.name)
+                const isFromPin = !!s._fromPin
                 return (
                   <div key={i} style={{ display: "flex", gap: 4 }}>
                     <button
                       style={{ ...(i === selectedIdx ? activeStrategyBtn : strategyBtn), flex: 1 }}
                       onClick={() => { setSelectedIdx(i); setJsonMode(false) }}>
                       {s.name}
-                      {isNew && <span style={newBadge}>new</span>}
+                      {isFromPin && <span style={pinnedBadge}>pinned</span>}
+                      {isNew && !isFromPin && <span style={newBadge}>new</span>}
                     </button>
                     <button
                       style={{ ...removeStrategyBtn, opacity: editedStrategies.length <= 1 ? 0.5 : 1, cursor: editedStrategies.length <= 1 ? "not-allowed" : "pointer" }}
@@ -353,6 +360,25 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                     </div>
                 )
               })}
+              {pinnedRuns
+                .filter((r: any) => !editedStrategies.some((s: any) => s.name === r.strategy_name))
+                .map((r: any) => (
+                  <div key={r.run_id} style={{ display: "flex", gap: 4 }}>
+                    <button
+                      style={{ ...strategyBtn, flex: 1 }}
+                      onClick={() => {
+                        const config = { ...r.strategy_config, name: r.strategy_name, _fromPin: true }
+                        const updated = [...editedStrategies, config]
+                        setEditedStrategies(updated)
+                        setSelectedIdx(updated.length - 1)
+                        setJsonMode(false)
+                      }}>
+                      {r.strategy_name}
+                      <span style={pinnedBadge}>pinned</span>
+                    </button>
+                  </div>
+                ))
+              }
               <button style={addStrategyBtn} onClick={() => {
                 const template = JSON.parse(JSON.stringify(editedStrategies[0]))
                 template.name = `custom_strategy_${editedStrategies.length + 1}`
@@ -378,18 +404,18 @@ export default function Sidebar({ setExperiment, experiment }: any) {
               ) : currentStrategy ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <Section title="Identity">
-                    <Row label="Name">
+                    <Row label="Name" tooltip="A unique identifier for this strategy">
                       <input style={inputStyle} value={currentStrategy.name}
                         onChange={(e) => updateField(["name"], e.target.value)} />
                     </Row>
                   </Section>
 
                   <Section title="Market State">
-                    <Row label="Lookback">
+                    <Row label="Lookback" tooltip="Lookback window key for market state calculations (e.g. '252d' = 1 year of daily data)">
                       <input style={inputStyle} value={currentStrategy.market_state_config?.lookback_window_key ?? ""}
                         onChange={(e) => updateField(["market_state_config", "lookback_window_key"], e.target.value)} />
                     </Row>
-                    <Row label="Cash Alloc">
+                    <Row label="Cash Alloc" tooltip="Fraction of the portfolio kept in cash; reduces capital allocated to securities (0 = fully invested, 0.05 = 5% cash)">
                       <input type="number" step={0.01} style={inputStyle}
                         value={currentStrategy.market_state_config?.cash_allocation ?? 0}
                         onChange={(e) => updateField(["market_state_config", "cash_allocation"], Number(e.target.value))} />
@@ -468,7 +494,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                             )
                           })}
                       </div>
-                    <Row label="Exogenous">
+                    <Row label="Exogenous" tooltip="Optional external signal tickers included as market regime features (e.g. ^VIX for volatility, ^TNX for interest rates)">
                       <input
                         style={inputStyle}
                         placeholder="e.g. ^VIX, ^TNX"
@@ -485,7 +511,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   </Section>
                   
                   <Section title="Strategy Type">
-                    <Row label="Strategy">
+                    <Row label="Strategy" tooltip="Portfolio construction method: systematic (signal-driven), fwp (fixed weights), ewp (equal weight), pairs (statistical arbitrage)">
                       <select style={inputStyle}
                         value={currentStrategy.rebalance_problem?.strategy_type ?? ""}
                         onChange={(e) => updateField(["rebalance_problem", "strategy_type"], e.target.value)}>
@@ -495,7 +521,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   </Section>
 
                   <Section title="Rebalance">
-                    <Row label="Frequency">
+                    <Row label="Frequency" tooltip="How often the portfolio is rebalanced and positions updated">
                       <select style={inputStyle}
                         value={currentStrategy.rebalance_problem?.rebalance_frequency ?? "weekly"}
                         onChange={(e) => updateField(["rebalance_problem", "rebalance_frequency"], e.target.value)}>
@@ -506,7 +532,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   <Section title="Signals">
                     {currentStrategy ? (
                     <>
-                    <Row label="Signal">
+                    <Row label="Signal" tooltip="Alpha signal source driving stock selection and portfolio weighting">
                       <select
                         style={inputStyle}
                         value={inferredSignalSource}
@@ -518,7 +544,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                       </select>
                     </Row>
 
-                    <Row label="Winsorize">
+                    <Row label="Winsorize" tooltip="Clip extreme signal values to reduce the influence of outliers before ranking">
                       <select
                         style={inputStyle}
                         value={currentStrategy.signals_config?.apply_winsorizing ? "true" : "false"}
@@ -531,14 +557,14 @@ export default function Sidebar({ setExperiment, experiment }: any) {
 
                     {currentStrategy.signals_config?.apply_winsorizing && (
                       <>
-                        <Row label="Lower %">
+                        <Row label="Lower %" tooltip="Signals below this percentile are clipped to this floor (e.g. 0.05 = bottom 5%)">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
                             value={currentStrategy.signals_config?.windsor_percentiles?.lower ?? 0.05}
                             onChange={(e) => updateField(["signals_config", "windsor_percentiles", "lower"], Number(e.target.value))}
                           />
                         </Row>
-                        <Row label="Upper %">
+                        <Row label="Upper %" tooltip="Signals above this percentile are clipped to this ceiling (e.g. 0.95 = top 95%)">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
                             value={currentStrategy.signals_config?.windsor_percentiles?.upper ?? 0.95}
@@ -549,7 +575,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                     )}
 
                     {(inferredSignalSource === "mean_reversion" || hasMeanReversionSignals) && (
-                      <Row label="MR Window">
+                      <Row label="MR Window" tooltip="Lookback window (in periods) for computing mean reversion z-scores">
                         <input
                           type="number"
                           style={inputStyle}
@@ -560,7 +586,7 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                     )}
 
                     {(inferredSignalSource === "momentum" || hasMomentumSignals) && (
-                      <Row label="Mom Skip">
+                      <Row label="Mom Skip" tooltip="Periods to skip at the recent end when computing momentum, avoiding short-term reversal (e.g. 1 = skip last month)">
                         <input
                           type="number"
                           style={inputStyle}
@@ -572,32 +598,32 @@ export default function Sidebar({ setExperiment, experiment }: any) {
 
                     {(inferredSignalSource === "pairs_trading" || hasPairsTrading) && (
                         <div style={blBlock}>
-                          <Row label="Lookback Horizon">
+                          <Row label="Lookback Horizon" tooltip="Rolling window length (in periods) for estimating pair relationships and spread statistics">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.pairs_lookback_horizon ?? 20}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_lookback_horizon"], Number(e.target.value))} />
                           </Row>                          
-                          <Row label="Cointegration Threshold">
+                          <Row label="Cointegration Threshold" tooltip="Maximum p-value for the cointegration test; lower = stricter pair selection (e.g. 0.05 = 5% significance)">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.cointegration_threshold ?? 0.05}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "cointegration_threshold"], Number(e.target.value))} />
                           </Row>
-                          <Row label="Correlation Filter">
+                          <Row label="Correlation Filter" tooltip="Minimum correlation required between pair assets; higher = tighter, more stable pairs (e.g. 0.70 = 70%)">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.correlation_filter ?? 0.70}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "correlation_filter"], Number(e.target.value))} />
                           </Row>
-                          <Row label="Entry">
+                          <Row label="Entry" tooltip="Z-score threshold to open a pair trade; higher = fewer but stronger signals (e.g. 1.25 = 1.25 standard deviations)">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.pairs_entry ?? 1.25}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_entry"], Number(e.target.value))} />
                           </Row>
-                          <Row label="Exit">
+                          <Row label="Exit" tooltip="Z-score threshold to close a pair trade and take profit (e.g. 0.5 = close when spread reverts to 0.5 std devs)">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.pairs_exit ?? 0.5}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_exit"], Number(e.target.value))} />
                           </Row>
-                          <Row label="Stop Loss">
+                          <Row label="Stop Loss" tooltip="Z-score at which a losing position is forcibly closed to limit losses (e.g. 3.5 = exit if spread widens to 3.5 std devs)">
                             <input type="number" step={0.1} style={inputStyle}
                               value={currentStrategy.signals_config?.pairs_trading?.pairs_stop_loss ?? 3.5}
                               onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_stop_loss"], Number(e.target.value))} />
@@ -629,35 +655,35 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                         </div>
                         {hasMlSignals && (
                           <div style={blBlock}>
-                            <Row label="Training">
+                            <Row label="Training" tooltip="Length of historical data used to train the ML model">
                               <select style={inputStyle}
                                 value={currentStrategy.signals_config?.ml_signals_config?.training_window ?? "2y"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "training_window"], e.target.value)}>
                                 {["6m", "1y", "2y", "3y", "5y"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Horizon">
+                            <Row label="Horizon" tooltip="Forward return horizon the model is trained to predict (e.g. 1m = predict 1-month ahead returns)">
                               <select style={inputStyle}
                                 value={currentStrategy.signals_config?.ml_signals_config?.horizon ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "horizon"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Rebal Cadence">
+                            <Row label="Rebal Cadence" tooltip="How often the model is retrained and signals refreshed">
                               <select style={inputStyle}
                                 value={currentStrategy.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "rebal_cadence"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Sample Stride">
+                            <Row label="Sample Stride" tooltip="Step size between training samples; larger = fewer samples and faster training (e.g. 1w = one sample per week)">
                               <select style={inputStyle}
                                 value={currentStrategy.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "sample_stride"], e.target.value)}>
                                 {["1d", "1w", "2w", "1m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Alpha">
+                            <Row label="Alpha" tooltip="Regularization strength for the ML model; higher = more regularization and simpler model, lower = more complex fit">
                               <input type="number" step={0.1} style={inputStyle}
                                 value={currentStrategy.signals_config?.ml_signals_config?.alpha ?? 1.0}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "alpha"], Number(e.target.value))} />
@@ -688,18 +714,18 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                         {hasBlackLitterman && (
                           <div style={blBlock}>
                             {([
-                              ["Delta", "delta", 0.1],
-                              ["Tau", "tau", 0.01],
-                              ["Reversion View", "reversion_view", 0.01],
-                              ["ML View Spread", "ml_view_spread", 0.01],
-                            ] as [string, string, number][]).map(([labelText, key, step]) => (
-                              <Row key={key} label={labelText}>
+                              ["Delta", "delta", 0.1, "Risk aversion coefficient for implied equilibrium returns; higher = more conservative prior (typical range 1–4)"],
+                              ["Tau", "tau", 0.01, "Scales uncertainty of the equilibrium prior; smaller = more confidence in the prior (typical range 0.01–0.10)"],
+                              ["Reversion View", "reversion_view", 0.01, "Expected mean-reversion return magnitude used as the investor view when applying mean-reversion signals"],
+                              ["ML View Spread", "ml_view_spread", 0.01, "Expected return spread used as the investor view when applying ML-based signals"],
+                            ] as [string, string, number, string][]).map(([labelText, key, step, tooltip]) => (
+                              <Row key={key} label={labelText} tooltip={tooltip}>
                                 <input type="number" step={step} style={inputStyle}
                                   value={currentStrategy.signals_config?.black_litterman?.[key] ?? ""}
                                   onChange={(e) => updateField(["signals_config", "black_litterman", key], Number(e.target.value))} />
                               </Row>
                             ))}
-                            <Row label="View Dir">
+                            <Row label="View Dir" tooltip="Direction of the investor view: momentum = expect trend continuation, mean_reversion = expect reversal toward the mean">
                               <select style={inputStyle}
                                 value={currentStrategy.signals_config?.black_litterman?.view_direction ?? "momentum"}
                                 onChange={(e) => updateField(["signals_config", "black_litterman", "view_direction"], e.target.value)}>
@@ -772,16 +798,15 @@ export default function Sidebar({ setExperiment, experiment }: any) {
                   {currentStrategy.rebalance_problem?.constraints && (
                     <Section title="Constraints">
                       {([
-                        ["Max Pos", "max_position_size", undefined],
-                        ["Min Pos", "min_position_size", undefined],
-                        ["Max #", "max_positions", undefined],
-                        ["Turnover", "turnover_limit", undefined],
+                        ["Max Pos", "max_position_size", "Maximum weight any single position can hold (e.g. 0.10 = 10% of portfolio)"],
+                        ["Min Pos", "min_position_size", "Minimum weight for any held position; prevents trivially small allocations"],
+                        ["Max #", "max_positions", "Maximum number of simultaneous positions in the portfolio"],
+                        ["Turnover", "turnover_limit", "Maximum allowable portfolio turnover per rebalance period"],
                         ["Risk Aversion", "risk_aversion", "0.10 — barely penalizes risk, near pure return maximization\n1.0 — balanced, textbook mean-variance\n2.5 — moderately risk averse, common in institutional settings\n5.0+ — conservative, heavily penalizes variance"],
-                        ["Vol Limit", "optimizer_vol_constraint", undefined],
-                      ] as [string, string, string | undefined][]).map(([labelText, key, tooltip]) => (
-                        <Row key={key} label={labelText}>
+                        ["Vol Limit", "optimizer_vol_constraint", "Maximum annualized portfolio volatility the optimizer will target; leave blank for unconstrained"],
+                      ] as [string, string, string][]).map(([labelText, key, tooltip]) => (
+                        <Row key={key} label={labelText} tooltip={tooltip}>
                           <input type="number" step={0.01} style={inputStyle}
-                            title={tooltip}
                             value={currentStrategy.rebalance_problem?.constraints?.[key] ?? ""}
                             onChange={(e) => updateField(["rebalance_problem", "constraints", key], Number(e.target.value))} />
                         </Row>
@@ -826,10 +851,13 @@ function Section({ title, children }: any) {
 }
 
 // Inline label+input row to halve vertical space vs stacked label/input
-function Row({ label, children }: any) {
+function Row({ label, tooltip, children }: any) {
   return (
     <div style={rowStyle}>
-      <span style={rowLabel}>{label}</span>
+      <span style={rowLabel}>
+        {label}
+        {tooltip && <span title={tooltip} style={{ marginLeft: 3, color: "#58a6ff", cursor: "help", fontSize: 11 }}>ⓘ</span>}
+      </span>
       <div style={rowInput}>{children}</div>
     </div>
   )
@@ -889,6 +917,10 @@ const addStrategyBtn: CSSProperties = {
 }
 const newBadge: CSSProperties = {
   fontSize: 9, color: "#3fb950", border: "1px solid #238636",
+  borderRadius: 3, padding: "0 4px", marginLeft: 6
+}
+const pinnedBadge: CSSProperties = {
+  fontSize: 9, color: "#58a6ff", border: "1px solid #1f6feb",
   borderRadius: 3, padding: "0 4px", marginLeft: 6
 }
 const removeStrategyBtn: CSSProperties = {

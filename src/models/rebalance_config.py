@@ -53,7 +53,6 @@ class RebalanceProblemConfig:
     signal_source: str
     monitoring_type: str
     rebalance_frequency: Optional[str]
-    apply_market_caps: bool
     apply_max_return_objective: bool
     apply_sharpe_objective: bool
     initial_weights: Optional[Any]
@@ -70,7 +69,6 @@ class RebalanceProblemConfig:
             signal_source=d.get("signal_source", "risk_return"),
             monitoring_type=d.get("monitoring_type", "long_only"),
             rebalance_frequency=d.get("rebalance_frequency", None),
-            apply_market_caps=d.get("apply_market_caps", False),
             apply_max_return_objective=d.get("apply_max_return_objective", False),
             apply_sharpe_objective=d.get("apply_sharpe_objective", False),
             initial_weights=d.get("initial_weights", None),
