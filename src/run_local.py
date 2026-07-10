@@ -48,6 +48,12 @@ def run_ml_mean_reversion_strategy():
         config = json.load(f)
     local_run(config)
 
+def run_standard_mean_variance_strategy():
+    logger.info("run_standard_mean_variance_strategy:: Starting local run of standard mean-variance strategy")
+    with open(f"src/config/experiment_securities_mean_variance_only.json", 'r') as f:
+        config = json.load(f)
+    local_run(config)
+
 def run_full_suite():
     logger.info("run_full_suite:: Starting local run of full suite of strategies")
     with open(f"src/config/experiment_securities_full_suite.json", 'r') as f:
@@ -63,7 +69,8 @@ def run_parameter_sweep():
 
 if __name__ == '__main__':
     # run_full_suite()
-    run_pairs_strategy()
+    # run_pairs_strategy()
     # run_ml_momentum_strategy()
     # run_ml_mean_reversion_strategy()
     # run_parameter_sweep()
+    run_standard_mean_variance_strategy()

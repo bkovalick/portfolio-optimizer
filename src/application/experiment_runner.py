@@ -33,7 +33,8 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig) -> StrategyRun:
     logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
     market_store = MarketDataStore(market_store_config)
-    market_state = MarketState(market_store, build_market_state_config(strategy_cfg))
+    market_state_config = build_market_state_config(strategy_cfg)
+    market_state = MarketState(market_store, market_state_config)
     
     rebalance_problem = RebalanceProblemBuilder(
         RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]), market_state
@@ -45,7 +46,7 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     
     run = BacktestingEngine(Portfolio(), strategy, market_state, build_signal_config(strategy_cfg), benchmark).run_backtest(rebalance_problem)
     
-    portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state.config, benchmark)
+    portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state_config, benchmark)
     
     monitor_ref = {"long_only": LongOnlyICDiagnostics, "pairs": PairsSpreadDiagnostics}.get(rebalance_problem.monitoring_type)
     portfolio_statistics = monitor_ref(run).analyze() if monitor_ref else None
