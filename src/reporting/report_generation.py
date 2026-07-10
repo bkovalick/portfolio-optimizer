@@ -74,7 +74,20 @@ class ExcelGenerator:
             ts_ws = wb.create_sheet(title="IC Series")
             for r_idx, row in enumerate(dataframe_to_rows(results["ic_series"], header=True, index=False), 1):
                 for c_idx, value in enumerate(row, 1):
-                    ts_ws.cell(row=r_idx, column=c_idx, value=value)                    
+                    ts_ws.cell(row=r_idx, column=c_idx, value=value)
+
+        if "factor_regression" in results and results["factor_regression"] is not None:
+            reg_ws = wb.create_sheet(title="Factor Regression")
+            reg_df = results["factor_regression"]
+            row_offset = 1
+            for _, rec in reg_df.iterrows():
+                reg_ws.cell(row=row_offset, column=1, value=rec["strategy"])
+                row_offset += 1
+                for line in rec["regression_summary"].splitlines():
+                    reg_ws.cell(row=row_offset, column=1, value=line)
+                    row_offset += 1
+                row_offset += 1  # blank separator between strategies
+                ts_ws.cell(row=r_idx, column=c_idx, value=value)                    
 
         wb.save(self.buffer)
         self.buffer.seek(0)
@@ -82,32 +95,42 @@ class ExcelGenerator:
     def aggregate_ic_series(self):
         ic_summary_rows = []
         ic_statistics_agg_df = []
+        regression_rows = []
 
         for strategy_run in self.experiment.strategy_runs:
             if strategy_run.monitoring_stats is None:
                 continue
-            
+
+            stats = strategy_run.monitoring_stats
             strategy_name = strategy_run.strategy_name
-            row = {"strategy": strategy_name}
-            for k, v in strategy_run.monitoring_stats.ic_summary.items():
-                if isinstance(v, (pd.Series, pd.DataFrame)):
-                    continue
-                row[k] = v
-            ic_summary_rows.append(row)
 
-            ic_statistics_df = deserialize_dataframe(strategy_run.monitoring_stats.ic_statistics).T
-            if len(ic_statistics_df) > 1:
-                ic_statistics_df.insert(0, "Date", pd.to_datetime(ic_statistics_df.index))
-                ic_statistics_df = ic_statistics_df.reset_index(drop=True)
-                ic_statistics_df.insert(1, "Strategy", strategy_name)
-                ic_statistics_df = ic_statistics_df.rename(columns= {0: "IC_Series"})
-            ic_statistics_agg_df.append(ic_statistics_df)
+            if stats.ic_summary is not None:
+                row = {"strategy": strategy_name}
+                for k, v in stats.ic_summary.items():
+                    if isinstance(v, (pd.Series, pd.DataFrame)):
+                        continue
+                    row[k] = v
+                ic_summary_rows.append(row)
 
-        ic_summary_df = pd.DataFrame(ic_summary_rows)
+            if stats.ic_statistics is not None:
+                ic_statistics_df = deserialize_dataframe(stats.ic_statistics).T
+                if len(ic_statistics_df) > 1:
+                    ic_statistics_df.insert(0, "Date", pd.to_datetime(ic_statistics_df.index))
+                    ic_statistics_df = ic_statistics_df.reset_index(drop=True)
+                    ic_statistics_df.insert(1, "Strategy", strategy_name)
+                    ic_statistics_df = ic_statistics_df.rename(columns={0: "IC_Series"})
+                ic_statistics_agg_df.append(ic_statistics_df)
+
+            if stats.regression_summary is not None:
+                regression_rows.append({"strategy": strategy_name, "regression_summary": stats.regression_summary})
+
+        ic_summary_df = pd.DataFrame(ic_summary_rows) if ic_summary_rows else None
         ic_statistics_agg_df = pd.concat(ic_statistics_agg_df, axis=0, ignore_index=True) if ic_statistics_agg_df else None
+        regression_df = pd.DataFrame(regression_rows) if regression_rows else None
         return {
             "ic_summary": ic_summary_df,
-            "ic_series": ic_statistics_agg_df
+            "ic_series": ic_statistics_agg_df,
+            "factor_regression": regression_df,
         }
 
     def aggregate_performance_metrics(self):
