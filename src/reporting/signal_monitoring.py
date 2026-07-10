@@ -56,20 +56,22 @@ class LongOnlyICDiagnostics(BaseMonitor):
         self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
 
         if self._scores is None or self._scores.empty:
-            raise ValueError("Scores history is empty or None. Cannot compute diagnostics.")
+            self._scores = None
         
         if self._forward_data is None or self._forward_data.empty:
-            raise ValueError("Forward returns history is empty or None. Cannot compute diagnostics.")
+            self._forward_data = None
 
         if self._portfolio_returns is None or self._portfolio_returns.empty:
-            raise ValueError("Portfolio returns are empty or None. Cannot compute diagnostics.")
+            self._portfolio_returns = None
         
     def analyze(self) -> MonitoringStats:
-        ic_sp_series = self._compute_ic_statistics()
-        factor_regression = self._ols_fama_french_factor_regression()
+        has_ic_data = self._scores is not None and self._forward_data is not None
+        has_port_data = self._portfolio_returns is not None
+        ic_sp_series = self._compute_ic_statistics() if has_ic_data else None
+        factor_regression = self._ols_fama_french_factor_regression() if has_port_data else None
         return MonitoringStats(
-            ic_statistics={"spearman": ic_sp_series.to_dict()},
-            ic_summary=self._compute_ic_summary(ic_sp_series),
+            ic_statistics={"spearman": ic_sp_series.to_dict()} if ic_sp_series is not None else None,
+            ic_summary=self._compute_ic_summary(ic_sp_series) if ic_sp_series is not None else None,
             regression_summary=factor_regression.as_text() if factor_regression is not None else None
         )
 
