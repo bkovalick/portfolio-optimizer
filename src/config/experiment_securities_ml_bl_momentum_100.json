@@ -10,6 +10,7 @@
     "benchmark": "SPY",
     "risk_free_rate": 0.03,
     "transaction_cost": 0.003,
+    "apply_market_caps": false,
     "tickers": [
       "^VIX",
       "SPY",
@@ -272,7 +273,6 @@
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
         "apply_max_return_objective": true,
-        "apply_market_caps": false,
         "strategy_rules": {
           "vol_target": 0.15,
           "vol_lookback_days": "1m",

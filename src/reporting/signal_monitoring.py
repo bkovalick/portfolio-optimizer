@@ -15,6 +15,7 @@ class BaseMonitor(abc.ABC):
     def analyze(self) -> MonitoringStats: ...
 
 class PairsSpreadDiagnostics(BaseMonitor):
+    """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
                  run: BacktestRun):
         self._run = run
@@ -68,7 +69,8 @@ class LongOnlyICDiagnostics(BaseMonitor):
         factor_regression = self._ols_fama_french_factor_regression()
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()},
-            ic_summary=self._compute_ic_summary(ic_sp_series)
+            ic_summary=self._compute_ic_summary(ic_sp_series),
+            regression_summary=factor_regression.as_text() if factor_regression is not None else None
         )
 
     def _compute_ic_statistics(self) -> pd.Series:
@@ -139,9 +141,10 @@ class LongOnlyICDiagnostics(BaseMonitor):
         """
         ff_factors = self._get_fama_french_five_factors
         ff_factors.index = ff_factors.index.to_timestamp()
-        mom_factor = self._get_momentum_factor
-        mom_factor.index = mom_factor.index.to_timestamp()
-        factors = ff_factors.join(mom_factor, how='inner')
+        # mom_factor = self._get_momentum_factor
+        # mom_factor.index = mom_factor.index.to_timestamp()
+        # factors = ff_factors.join(mom_factor, how='inner')
+        factors = ff_factors
         regression_data = pd.merge(
             self._portfolio_returns.to_frame("Returns"), factors, left_index=True, right_index=True
         )

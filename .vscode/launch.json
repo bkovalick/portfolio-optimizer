@@ -5,7 +5,7 @@
             "name": "Python Debugger: Launch strategy runner",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/main.py",
+            "program": "src/run_local.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "python": "${workspaceFolder}/.venv/Scripts/python.exe",

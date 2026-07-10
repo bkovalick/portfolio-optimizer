@@ -93,20 +93,25 @@ class StrategyResultsDataGateway(GatewayBase):
     """
 
     INSERT_B_SUMMARY = """
-    
+        INSERT OR REPLACE INTO backtest_summary
+            (experiment_id, run_id, strategy_name, strategy_config, metadata)
+        VALUES (?, ?, ?, ?, ?)
     """    
 
     INSERT_B_SERIES = """
-    
+    INSERT OR REPLACE INTO backtest_series
+        (experiment_id, run_id, strategy_name, strategy_config, metadata)
     """        
 
     INSERT_IC_SUMMARY = """
-    
+    INSERT OR REPLACE INTO ic_summary
+        (experiment_id, run_id, strategy_name, strategy_config, metadata)
     """
     
     INSERT_IC_SERIES = """
-    
-    """    
+    INSERT OR REPLACE INTO ic_series
+        (experiment_id, run_id, strategy_name, strategy_config, metadata)
+    """
     
     def __init__(self, database_name: str):
         super().__init__(database_name)
