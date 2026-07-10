@@ -5,6 +5,7 @@ from scipy.stats import spearmanr
 from scipy import stats
 import statsmodels.api as sm
 from pandas_datareader.famafrench import FamaFrenchReader
+from pandas_datareader import data as web
 
 from models.monitoring_stats import MonitoringStats
 from models.backtest_run import BacktestRun
@@ -168,12 +169,11 @@ class LongOnlyICDiagnostics(BaseMonitor):
     def _get_momentum_factor(self):
         start_date = self._portfolio_returns.index[0]
         end_date = self._portfolio_returns.index[-1]
-        mom_dataset = FamaFrenchReader('F-F_Momentum_Factor_daily', start=start_date, end=end_date)
-        return mom_dataset.read()[0][['Mom']]
+        df_daily = web.DataReader('F-F_Momentum_Factor_daily', 'famafrench', start=start_date, end=end_date)
+        return df_daily[0]
 
     @property
     def _trading_days_per_year(self) -> int:
         n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
         trading_days_per_year = round(len(self._portfolio_returns) / n_years)
-        return trading_days_per_year       
-        
+        return trading_days_per_year

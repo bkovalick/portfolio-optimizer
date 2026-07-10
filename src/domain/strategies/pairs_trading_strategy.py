@@ -27,36 +27,29 @@ class PairsTradingStrategy(BaseStrategy):
         )
         return pair_weights
 
-    def _run_pairs_strategy(self, 
+    def _run_pairs_strategy(self,
                             current_weights: np.ndarray,
                             active_signal: PairsTradingSignal) -> np.ndarray:
         if not isinstance(active_signal, PairsTradingSignal):
             raise ValueError("Active signal must be of type PairsTradingSignal")
 
-        tickers = self.rebalance_problem.initial_weights.keys()
-        current_weights_dict = dict(zip(tickers, current_weights))
-
-        active_pairs = active_signal.compute_trading_pairs(current_weights_dict, self.existing_pairs)
+        tickers = list(self.rebalance_problem.initial_weights.keys())
+        active_pairs = active_signal.compute_trading_pairs(dict(zip(tickers, current_weights)), self.existing_pairs)
         if active_pairs.empty:
             return current_weights
 
-        new_weights = {ticker: 0.0 for ticker in tickers}
         active = active_pairs[active_pairs["State"].isin({"EnterShort", "HoldShort", "EnterLong", "HoldLong"})].copy()
-        
         sign = np.where(active["State"].isin({"EnterShort", "HoldShort"}), -1.0, 1.0)
         denom = 1.0 + active["HedgeRatio"].abs()
         active["WeightA"] = (sign * active["FinalWeight"]) / denom
         active["WeightB"] = (-sign * active["FinalWeight"] * active["HedgeRatio"]) / denom
 
-        weight_a = active.groupby("AssetA")["WeightA"].sum()
-        weight_b = active.groupby("AssetB")["WeightB"].sum()
-        for ticker, w in weight_a.add(weight_b, fill_value=0).items():
-            if ticker in new_weights:
-                new_weights[ticker] = w
+        combined = active.groupby("AssetA")["WeightA"].sum().add(
+            active.groupby("AssetB")["WeightB"].sum(), fill_value=0
+        )
+        new_weights = {t: combined.get(t, 0.0) for t in tickers}
 
         self.pairs_cache.extend(active.itertuples())
         self.existing_pairs = list(zip(active_pairs["AssetA"], active_pairs["AssetB"]))
-        
-        if sum(new_weights.values()) == 0:
-            return current_weights
-        return np.array(list(new_weights.values())) 
+        updated_weights = current_weights if sum(new_weights.values()) == 0 else np.array(list(new_weights.values())) 
+        return updated_weights
