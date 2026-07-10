@@ -4,8 +4,8 @@ import numpy as np
 from scipy.stats import spearmanr
 from scipy import stats
 import statsmodels.api as sm
+import requests, zipfile, io
 from pandas_datareader.famafrench import FamaFrenchReader
-from pandas_datareader import data as web
 
 from models.monitoring_stats import MonitoringStats
 from models.backtest_run import BacktestRun
@@ -139,9 +139,7 @@ class LongOnlyICDiagnostics(BaseMonitor):
         """
         ff_factors = self._get_fama_french_five_factors
         ff_factors.index = ff_factors.index.to_timestamp()
-        mom_factor = self._get_momentum_factor
-        mom_factor.index = mom_factor.index.to_timestamp()
-        factors = ff_factors.join(mom_factor, how='inner')
+        factors = ff_factors.join(self._get_momentum_factor, how='inner')
         regression_data = pd.merge(
             self._portfolio_returns.to_frame("Returns"), factors, left_index=True, right_index=True
         )
@@ -166,11 +164,29 @@ class LongOnlyICDiagnostics(BaseMonitor):
         return ff_dataset.read()[0]
     
     @property
-    def _get_momentum_factor(self):
+    def _get_momentum_factor(self) -> pd.DataFrame:
+        url = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_daily_CSV.zip"
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            csv_text = z.read(z.namelist()[0]).decode('utf-8', errors='replace')
+        lines = [l for l in csv_text.splitlines() if l.strip()]
+        data_start = next(i for i, l in enumerate(lines) if l.strip()[:8].isdigit())
+        data_lines = []
+        for l in lines[data_start:]:
+            if l.strip()[:8].isdigit():
+                data_lines.append(l)
+            else:
+                break
+        df = pd.read_csv(
+            io.StringIO('\n'.join(data_lines)),
+            header=None, sep=r'\s+', names=['Date', 'Mom', 'RF']
+        )
+        df.index = pd.to_datetime(df['Date'].astype(str), format='%Y%m%d')
+        df['Mom'] = pd.to_numeric(df['Mom'], errors='coerce') / 100
         start_date = self._portfolio_returns.index[0]
         end_date = self._portfolio_returns.index[-1]
-        df_daily = web.DataReader('F-F_Momentum_Factor_daily', 'famafrench', start=start_date, end=end_date)
-        return df_daily[0]
+        return df[['Mom']].dropna().loc[start_date:end_date]
 
     @property
     def _trading_days_per_year(self) -> int:
