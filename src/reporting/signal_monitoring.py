@@ -152,7 +152,8 @@ class LongOnlyICDiagnostics(BaseMonitor):
         )
         regression_data['Asset_Excess_Return'] = regression_data['Returns'] - \
             self._risk_free_rate / self._trading_days_per_year
-        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']]
+        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA']]
+        # , 'Mom']]
         X = sm.add_constant(X)
         y = regression_data['Asset_Excess_Return']
         model = sm.OLS(y, X).fit()

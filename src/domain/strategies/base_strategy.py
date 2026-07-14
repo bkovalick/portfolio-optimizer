@@ -1,6 +1,7 @@
 import abc
 import numpy as np
 from models.rebalance_problem import RebalanceProblem
+from models.backtest_run import BacktestRun
 from domain.signals.signals import Signals
 from domain.optimizers.optimizer import Optimizer
 
@@ -12,7 +13,7 @@ class BaseStrategy(abc.ABC):
         self.optimizer = optimizer or Optimizer()
 
     @abc.abstractmethod
-    def rebalance(self, signals, current_weights):
+    def rebalance(self, signals: Signals, current_weights: np.ndarray):
         raise NotImplementedError("Derived classes must implement 'rebalance' method")
     
     def _apply_vol_targeting(self, 
@@ -33,3 +34,13 @@ class BaseStrategy(abc.ABC):
         adjusted_weights[:-1] = optimized_weights[:-1] * scaling_factor
         adjusted_weights[-1] = 1.0 - np.sum(adjusted_weights[:-1])
         return adjusted_weights
+    
+    # def _build_backtest_run(self, signals: Signals) -> BacktestRun:
+    #     ml_signals_state = getattr(self, "ml_signals_state", None)
+    #     scores_history = ml_signals_state.scores_history if ml_signals_state is not None else None
+    #     fwd_returns_history = ml_signals_state.fwd_returns_history if ml_signals_state is not None else None
+    #     return BacktestRun(
+    #         portfolio=self.portfolio,
+    #         fwd_history=fwd_returns_history,
+    #         scores_history=scores_history
+    #     )    

@@ -10,6 +10,7 @@ from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
 from services.optimizer_factory import OptimizerFactory
 from services.rebalance_problem_builder import RebalanceProblemBuilder
+from services.signals_factory import SignalFactory
 from models.strategy_run import StrategyRun
 from models.market_config import MarketStoreConfig, MarketStateConfig
 from models.rebalance_config import RebalanceProblemConfig
@@ -30,12 +31,17 @@ def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
     if not cfg: raise ValueError("Error: Market state configuration must be present to run a backtest")
     return MarketStateConfig.from_dict(cfg)
 
+def build_signals_factory(strategy_cfg: dict, market_state: MarketState, benchmark: pd.Series) -> SignalFactory:
+    signal_config = build_signal_config(strategy_cfg)
+    signals_factory = SignalFactory(signal_config, market_state, benchmark)
+    return signals_factory
+
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig) -> StrategyRun:
     logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
     market_store = MarketDataStore(market_store_config)
     market_state_config = build_market_state_config(strategy_cfg)
     market_state = MarketState(market_store, market_state_config)
-    
+
     rebalance_problem = RebalanceProblemBuilder(
         RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]), market_state
     ).build()
@@ -43,8 +49,11 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     optimizer = OptimizerFactory.create_optimizer(rebalance_problem.optimizer_type)
     strategy = StrategyFactory.create_strategy(rebalance_problem, optimizer)
     benchmark = market_store.prices[market_store_config.benchmark]
+    signals_factory = build_signals_factory(strategy_cfg, market_state, benchmark)
     
-    run = BacktestingEngine(Portfolio(), strategy, market_state, build_signal_config(strategy_cfg), benchmark).run_backtest(rebalance_problem)
+    run = BacktestingEngine(
+        Portfolio(), strategy, market_state, signals_factory, benchmark
+    ).run_backtest(rebalance_problem)
     
     portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state_config, benchmark)
     
