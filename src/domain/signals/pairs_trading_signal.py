@@ -10,8 +10,6 @@ class PairsTradingSignal:
                  market_state: MarketState,
                  pairs_trading_config: PairsTradingConfig):
         self.market_state = market_state
-        self.prices = self.market_state.lookback_prices()
-        self.sectors_to_tickers = self.market_state.sectors_to_tickers        
         self.pairs_trading_config = pairs_trading_config
         self.pairs_lookback_horizon = pairs_trading_config.pairs_lookback_horizon
         self.cointegration_threshold = pairs_trading_config.cointegration_threshold
@@ -28,17 +26,19 @@ class PairsTradingSignal:
            Identify pairs of assets that are historically correlated and cointegrated, 
            build portfolio weights based on the signal and return those weights 
         """
-        pairs = self._determine_pairs(self.prices, existing_pairs)
+        prices = self.market_state.lookback_prices()
+        self.sectors_to_tickers = self.market_state.sectors_to_tickers
+        pairs = self._determine_pairs(prices, existing_pairs)
         active_pairs = []
         for pair in pairs:
-            hedge_ratio = self._hedge_ratio(self.prices[pair[0]], self.prices[pair[1]])
-            spread = self._compute_spread(self.prices[pair[0]], self.prices[pair[1]], hedge_ratio)
+            hedge_ratio = self._hedge_ratio(prices[pair[0]], prices[pair[1]])
+            spread = self._compute_spread(prices[pair[0]], prices[pair[1]], hedge_ratio)
             spread_vol = spread.diff().rolling(self.pairs_lookback_horizon).std()
             zscores = self._compute_zscores(spread)
             if pd.isna(zscores.iloc[-1]) or pd.isna(spread_vol.iloc[-1]):
                 continue
-            return_a = (self.prices[pair[0]].iloc[-1] / self.prices[pair[0]].iloc[-2]) - 1
-            return_b = (self.prices[pair[1]].iloc[-1] / self.prices[pair[1]].iloc[-2]) - 1
+            return_a = (prices[pair[0]].iloc[-1] / prices[pair[0]].iloc[-2]) - 1
+            return_b = (prices[pair[1]].iloc[-1] / prices[pair[1]].iloc[-2]) - 1
             state = self._determine_state(pair, zscores.iloc[-1], current_weights_dict)
             active_pairs.append(
                 {
@@ -61,11 +61,7 @@ class PairsTradingSignal:
         active_pairs_df = pd.DataFrame(active_pairs)
         if active_pairs_df.empty:
             return active_pairs_df
-        
-        # if active_pairs_df["RawWeight"].sum() == 0:
-        #     active_pairs_df["FinalWeight"] = 0
-        # else:
-        #     active_pairs_df["FinalWeight"] = active_pairs_df["RawWeight"] / active_pairs_df["RawWeight"].sum()
+
         active_pairs_df["FinalWeight"] = self.per_pair_gross
         return active_pairs_df
 

@@ -113,16 +113,30 @@ class MLPredictorSignal(RiskReturnSignals):
                  predictor_state: MLPredictorSignalsState):
         super().__init__(market_state, signals_cfg)
 
-        self.ml_config = ml_config
-        self.predictor_state = predictor_state
+        self._ml_config = ml_config
+        self._predictor_state = predictor_state
 
+    @property
+    def _warmup(self) -> int:
+        return self._ml_config.training_window + self._ml_config.horizon
+    
+    def update(self, cursor: int, as_of_date: datetime):
+        if cursor >= self._warmup:
+            self._predictor_state.update(cursor, as_of_date)
+
+    def get_diagnostics(self):
+        return {
+            "scores_history": self._predictor_state.scores_history,
+            "fwd_history": self._predictor_state.fwd_returns_history,
+        }
+                
     def mean_returns(self):
-        if not self.ml_config.enabled:
+        if not self._ml_config.enabled:
             return super().mean_returns()
-        if self.predictor_state.scores is None:
+        if self._predictor_state.scores is None:
             return super().mean_returns()
         universe = self.market_state.investment_universe
-        scores = self.predictor_state.scores.reindex(universe).to_numpy(dtype=float)
+        scores = self._predictor_state.scores.reindex(universe).to_numpy(dtype=float)
         if np.isnan(scores).any():
             fallback = super().mean_returns()
             nan_mask = np.isnan(scores)

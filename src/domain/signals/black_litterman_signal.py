@@ -11,14 +11,13 @@ class BlackLittermanSignal(RiskReturnSignals):
     def __init__(self, 
                  market_state: MarketState, 
                  signals_config: SignalsConfig,
-                 ml_state: Optional[MLPredictorSignalsState],
-                 current_weights: np.ndarray):
+                 ml_state: Optional[MLPredictorSignalsState]):
         super().__init__(market_state, signals_config)
         self.ml_state = ml_state
         self.ml_signals_config = self.signals_config.ml_signals_config
         self.security_to_etf_map = self.market_state.security_to_etf_map
         self.investment_universe = self.market_state.investment_universe
-        self.current_weights = current_weights
+        self.equilibrium_weights = self._build_equilibrium_weights()
         self.use_ml = (
             self.ml_signals_config is not None
             and self.ml_signals_config.enabled
@@ -46,13 +45,20 @@ class BlackLittermanSignal(RiskReturnSignals):
             return pi
         return self._compute_posterior(pi, sigma, P, Q, omega)
     
+    def _build_equilibrium_weights(self) -> np.ndarray:
+        """
+        Constructs the equilibrium weights vector, which is uniform across the investment universe if no specific weights are provided in the black_litterman config.
+        """
+        n = len(self.investment_universe)
+        return np.ones(n) / n
+    
     def _compute_equilibrium_returns(self, sigma):
         """
         Computes the CAPM-implied equilibrium excess returns (pi) using reverse
         optimization: pi = delta * Sigma * w, where delta is the risk aversion
         coefficient and w is the current portfolio weight vector.
         """
-        return self.delta * sigma @ self.current_weights
+        return self.delta * sigma @ self.equilibrium_weights
 
     def _build_views(self, sigma: np.ndarray):
         """

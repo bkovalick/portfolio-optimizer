@@ -12,6 +12,9 @@ class PairsTradingStrategy(BaseStrategy):
         self.pairs_cache = []
         self.existing_pairs = None
 
+    def get_diagnostics(self) -> dict:
+        return {"pairs_cache": self.pairs_cache}
+
     def rebalance(self, 
                   signals: dict, 
                   current_weights: np.ndarray) -> np.ndarray:

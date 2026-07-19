@@ -70,14 +70,14 @@ class BacktestingEngine(BacktestingEngineInterface):
             if not self._is_rebalance_step(cursor):
                 continue
 
-            signals = self.signals_factory.build_signals(self.market_state, prev_weights)
+            signals = self.signals_factory.build_signals()
 
             target_weights = self.strategy.rebalance(signals, prev_weights)
             self.portfolio.apply(target_weights, prev_weights, cursor)
             prev_weights = target_weights
 
         print(f"Backtest duration: {time.time() - start_time} seconds")
-        return self._build_backtest_run(rebalance_problem)
+        return self._build_backtest_run()
 
     def _is_rebalance_step(self, step):
         return step % self.rebalance_every == 0
@@ -85,21 +85,14 @@ class BacktestingEngine(BacktestingEngineInterface):
     def _get_steps(self, freq_param):
         key = (self.market_state.market_frequency, freq_param)
         return FREQ_TO_STEPS.get(key, 1)
+    
+    def _build_backtest_run(self) -> BacktestRun:
+        diagnostics = self.strategy.get_diagnostics() if hasattr(self.strategy, "get_diagnostics") else {}
 
-    # place a get diagnostic method in the base of the strategy classes. Override where necessary    
-    def _build_backtest_run(self, rebalance_problem: RebalanceProblem) -> BacktestRun:
-        if hasattr(self.strategy, "pairs_cache") and rebalance_problem.monitoring_type == "pairs":
-            pairs_cache = self.strategy.pairs_cache
-            return BacktestRun(
-                portfolio=self.portfolio,
-                pairs_cache=pairs_cache
-            )
+        if hasattr(self.signals_factory, "get_diagnostics"):
+            diagnostics.update(self.signals_factory.get_diagnostics())
 
-        ml_signals_state = getattr(self, "ml_signals_state", None)
-        scores_history = ml_signals_state.scores_history if ml_signals_state is not None else None
-        fwd_returns_history = ml_signals_state.fwd_returns_history if ml_signals_state is not None else None
         return BacktestRun(
             portfolio=self.portfolio,
-            fwd_history=fwd_returns_history,
-            scores_history=scores_history
-        )
+            **diagnostics
+        )    

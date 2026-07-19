@@ -12,6 +12,13 @@ class BaseStrategy(abc.ABC):
         self.rebalance_problem = rebalance_problem
         self.optimizer = optimizer or Optimizer()
 
+    def get_diagnostics(self) -> dict:
+        """
+        Returns a dictionary of strategy-specific diagnostic data (e.g. caches).
+        Should be overridden by subclasses if they generate diagnostics.
+        """
+        return {}
+
     @abc.abstractmethod
     def rebalance(self, signals: Signals, current_weights: np.ndarray):
         raise NotImplementedError("Derived classes must implement 'rebalance' method")
@@ -34,13 +41,3 @@ class BaseStrategy(abc.ABC):
         adjusted_weights[:-1] = optimized_weights[:-1] * scaling_factor
         adjusted_weights[-1] = 1.0 - np.sum(adjusted_weights[:-1])
         return adjusted_weights
-    
-    # def _build_backtest_run(self, signals: Signals) -> BacktestRun:
-    #     ml_signals_state = getattr(self, "ml_signals_state", None)
-    #     scores_history = ml_signals_state.scores_history if ml_signals_state is not None else None
-    #     fwd_returns_history = ml_signals_state.fwd_returns_history if ml_signals_state is not None else None
-    #     return BacktestRun(
-    #         portfolio=self.portfolio,
-    #         fwd_history=fwd_returns_history,
-    #         scores_history=scores_history
-    #     )    
