@@ -18,12 +18,12 @@ class BlackLittermanSignal(RiskReturnSignals):
         self.security_to_etf_map = self.market_state.security_to_etf_map
         self.investment_universe = self.market_state.investment_universe
         self.equilibrium_weights = self._build_equilibrium_weights()
-        self.use_ml = (
-            self.ml_signals_config is not None
-            and self.ml_signals_config.enabled
-            and self.ml_state is not None
-            and self.ml_state.scores is not None
-        )         
+        # self.use_ml = (
+        #     self.ml_signals_config is not None
+        #     and self.ml_signals_config.enabled
+        #     and self.ml_state is not None
+        #     and self.ml_state.scores is not None
+        # )         
         bl = getattr(self.signals_config, "black_litterman", None) or {}
         self.black_litterman = bl if bl else None
         self.tau = bl.get("tau", 0.05)
@@ -156,9 +156,7 @@ class BlackLittermanSignal(RiskReturnSignals):
 
         if winners.sum() == 0 or losers.sum() == 0:
             return P
-        
-        if self.security_to_etf_map is not None:
-            pass
+
         for ticker in ranked_scores.index:
             idx = self.investment_universe.index(ticker)
             if losers.loc[ticker]:
@@ -207,3 +205,10 @@ class BlackLittermanSignal(RiskReturnSignals):
                 views_Q.append(-expected_spread)
 
         return np.array(views_P) , np.array(views_Q)
+
+    @property
+    def use_ml(self) -> bool:
+        return (self.ml_signals_config is not None
+                and self.ml_signals_config.enabled
+                and self.ml_state is not None
+                and self.ml_state.scores is not None)

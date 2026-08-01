@@ -60,6 +60,12 @@ def run_full_suite():
         config = json.load(f)
     local_run(config)
 
+def run_equal_weight_strategy():
+    logger.info("run_equal_weight_strategy:: Starting local run of equal weight strategy")
+    with open(f"src/config/experiment_equal_weight.json", 'r') as f:
+        config = json.load(f)
+    local_run(config)
+
 def run_parameter_sweep():
     with open(f"src/config/experiment_securities_ml_bl_momentum.json", 'r') as f:
         config = json.load(f)
@@ -70,7 +76,8 @@ def run_parameter_sweep():
 if __name__ == '__main__':
     # run_full_suite()
     # run_pairs_strategy()
-    run_ml_momentum_strategy()
+    # run_ml_momentum_strategy()
     # run_ml_mean_reversion_strategy()
     # run_parameter_sweep()
     # run_standard_mean_variance_strategy()
+    run_equal_weight_strategy()

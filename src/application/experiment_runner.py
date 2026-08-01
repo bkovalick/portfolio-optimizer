@@ -1,6 +1,7 @@
 import uuid, logging, multiprocessing, pandas as pd
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Optional
 
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
@@ -21,9 +22,10 @@ from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataG
 
 logger = logging.getLogger(__name__)
 
-def build_signal_config(strategy_cfg: dict) -> SignalsConfig:
+def build_signal_config(strategy_cfg: dict) -> Optional[SignalsConfig]:
     cfg = strategy_cfg.get("signals_config")
-    if not cfg: raise ValueError("Error: Signal configuration must be present to run a backtest")
+    if not cfg: 
+        return None
     return SignalsConfig.from_dict(cfg, strategy_cfg.get("market_state_config", {}).get("market_frequency", "d"))
 
 def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:

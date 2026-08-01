@@ -23,6 +23,8 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonText, setJsonText] = useState("")
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [newUniverseTicker, setNewUniverseTicker] = useState("")
+  const [newUniverseTickerError, setNewUniverseTickerError] = useState<string | null>(null)
 
   function getPreviousBusinessDay(date: Date = new Date()): Date {
     const dayOfWeek = date.getDay();
@@ -142,6 +144,53 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
     }
     node[path[path.length - 1]] = value
     setEditedStrategies(updated)
+  }
+
+  const updateUniverseTickers = (nextTickers: string[]) => {
+    const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
+    if (!updatedStrategies[selectedIdx].market_state_config) {
+      updatedStrategies[selectedIdx].market_state_config = {}
+    }
+    updatedStrategies[selectedIdx].market_state_config.investment_universe = nextTickers
+
+    if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
+      const rawWeights = currentStrategy.rebalance_problem?.initial_weights
+      const currentWeights: Record<string, number> = Array.isArray(rawWeights)
+        ? Object.fromEntries((currentStrategy.market_state_config?.investment_universe ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
+        : (rawWeights ?? {})
+
+      updatedStrategies[selectedIdx].rebalance_problem.initial_weights = Object.fromEntries(
+        nextTickers.map((t: string) => [t, currentWeights[t] ?? 0])
+      )
+    }
+
+    setEditedStrategies(updatedStrategies)
+    setNewUniverseTickerError(null)
+  }
+
+  const availableUniverseTickers = ((strategySet?.market_store_config?.tickers ?? []) as string[]).filter(
+    (ticker: string) => ticker !== strategySet?.market_store_config?.benchmark
+  )
+
+  const addUniverseTicker = (rawTicker: string) => {
+    const ticker = rawTicker.trim().toUpperCase()
+    if (!ticker) return
+
+    if (!availableUniverseTickers.includes(ticker)) {
+      setNewUniverseTickerError(`Unknown ticker: ${ticker}`)
+      return
+    }
+
+    const current = currentStrategy.market_state_config?.investment_universe ?? []
+    if (current.includes(ticker)) {
+      setNewUniverseTicker("")
+      setNewUniverseTickerError(null)
+      return
+    }
+
+    updateUniverseTickers([...current, ticker])
+    setNewUniverseTicker("")
+    setNewUniverseTickerError(null)
   }
 
   // BL is an overlay, not a signal. It's preserved when switching between any
@@ -423,76 +472,56 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
                     <label style={labelStyle}>Universe Tickers</label>
                       <div style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
                         <button style={smallBtn} onClick={() => {
-                          const allTickers = (strategySet.market_store_config.tickers ?? []).filter(
-                            (t: string) => t !== strategySet.market_store_config.benchmark
-                          )
-                          if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
-                            const rawWeights = currentStrategy.rebalance_problem?.initial_weights
-                            const currentWeights: Record<string, number> = Array.isArray(rawWeights)
-                              ? Object.fromEntries((currentStrategy.market_state_config?.investment_universe ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
-                              : (rawWeights ?? {})
-                            const newWeights = Object.fromEntries(allTickers.map((t: string) => [t, currentWeights[t] ?? 0]))
-                            const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.investment_universe = allTickers
-                            updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
-                            setEditedStrategies(updatedStrategies)
-                            return
-                          }
-                          updateField(["market_state_config", "investment_universe"], allTickers)
+                          updateUniverseTickers(availableUniverseTickers)
                         }}>All</button>
 
                         <button style={smallBtn} onClick={() => {
-                          if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
-                            const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.investment_universe = []
-                            updatedStrategies[selectedIdx].rebalance_problem.initial_weights = {}
-                            setEditedStrategies(updatedStrategies)
-                            return
-                          }
-                          updateField(["market_state_config", "investment_universe"], [])
+                          updateUniverseTickers([])
                         }}>Clear</button>
+                        <input
+                          style={{ ...inputStyle, maxWidth: 140 }}
+                          placeholder="Add ticker"
+                          value={newUniverseTicker}
+                          onChange={(e) => {
+                            setNewUniverseTicker(e.target.value.toUpperCase())
+                            if (newUniverseTickerError) setNewUniverseTickerError(null)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return
+                            e.preventDefault()
+                            addUniverseTicker(newUniverseTicker)
+                          }}
+                        />
+                        <button style={smallBtn} onClick={() => {
+                          addUniverseTicker(newUniverseTicker)
+                        }}>Add</button>
                         <span style={{ fontSize: 10, color: "#8b949e" }}>
                           {(currentStrategy.market_state_config?.investment_universe ?? []).length} selected
                         </span>
                       </div>
+                      {newUniverseTickerError && (
+                        <div style={{ fontSize: 10, color: "#f85149", marginBottom: 4 }}>
+                          {newUniverseTickerError}
+                        </div>
+                      )}
                       <div style={tickerGrid}>
-                        {(strategySet.market_store_config.tickers ?? [])
-                          .filter((t: string) => t !== strategySet.market_store_config.benchmark)
-                          .map((ticker: string) => {
-                            const selected = (currentStrategy.market_state_config?.investment_universe ?? []).includes(ticker)
-                            return (
-                              <button
-                                key={ticker}
-                                style={selected ? tickerChipActive : tickerChip}
-                                onClick={() => {
-                                  const current = currentStrategy.market_state_config?.investment_universe ?? []
-                                  const updated = selected
-                                    ? current.filter((t: string) => t !== ticker)
-                                    : [...current, ticker]
-                                  
-                                  // If fwp strategy, sync initial_weights dict with new ticker list
-                                  if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
-                                    const rawWeights = currentStrategy.rebalance_problem?.initial_weights
-                                    const currentWeights: Record<string, number> = Array.isArray(rawWeights)
-                                      ? Object.fromEntries(current.map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
-                                      : (rawWeights ?? {})
-                                    
-                                    const newWeights = Object.fromEntries(
-                                      updated.map((t: string) => [t, currentWeights[t] ?? 0])
-                                    )
-                                    
-                                    const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                                    updatedStrategies[selectedIdx].market_state_config.investment_universe = updated
-                                    updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
-                                    setEditedStrategies(updatedStrategies)
-                                    return
-                                  }
+                        {availableUniverseTickers.map((ticker: string) => {
+                          const selected = (currentStrategy.market_state_config?.investment_universe ?? []).includes(ticker)
+                          return (
+                            <button
+                              key={ticker}
+                              style={selected ? tickerChipActive : tickerChip}
+                              onClick={() => {
+                                const current = currentStrategy.market_state_config?.investment_universe ?? []
+                                const updated = selected
+                                  ? current.filter((t: string) => t !== ticker)
+                                  : [...current, ticker]
 
-                                  updateField(["market_state_config", "investment_universe"], updated)
-                                }}
-                              >{ticker}</button>
-                            )
-                          })}
+                                updateUniverseTickers(updated)
+                              }}
+                            >{ticker}</button>
+                          )
+                        })}
                       </div>
                     <Row label="Exogenous" tooltip="Optional external signal tickers included as market regime features (e.g. ^VIX for volatility, ^TNX for interest rates)">
                       <input

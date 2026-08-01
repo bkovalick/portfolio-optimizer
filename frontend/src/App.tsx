@@ -6,11 +6,14 @@ import StrategyDetails from "./components/StrategyDetails"
 import AnalysisPanel from "./components/AnalysisPanel"
 import type { DateWindow } from "./utils/metricsUtils"
 
+type AppTab = "dashboard" | "statistics" | "validation" | "live"
+
 export default function App() {
   const [experiment, setExperiment] = useState<any>(null)
   const [selectedRun, setSelectedRun] = useState<any>(null)
   const [pinnedRuns, setPinnedRuns] = useState<any[]>([])
   const [dateWindow, setDateWindow] = useState<DateWindow | null>(null)
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard")
 
   const handlePin = (run: any) => {
     setPinnedRuns(prev =>
@@ -46,27 +49,82 @@ export default function App() {
 
       <div style={styles.main}>
         {allRuns.length > 0 ? (
-          <div style={styles.twoCol}>
-            <div style={styles.leftCol}>
-              <StrategyGrid
-                runs={allRuns}
-                onSelect={setSelectedRun}
-                pinnedIds={pinnedIds}
-                onPin={handlePin}
-                dateWindow={dateWindow}
-              />
-              <StrategyDetails
-                runs={allRuns}
-                onWindowChange={setDateWindow}
-                dateWindow={dateWindow}
-              />
+          <div style={styles.mainContent}>
+            <div style={styles.tabStrip}>
+              <button
+                style={activeTab === "dashboard" ? styles.activeTab : styles.inactiveTab}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                Dashboard
+              </button>
+              <button
+                style={activeTab === "statistics" ? styles.activeTab : styles.inactiveTab}
+                onClick={() => setActiveTab("statistics")}
+              >
+                Statistics
+              </button>
+              <button
+                style={activeTab === "validation" ? styles.activeTab : styles.inactiveTab}
+                onClick={() => setActiveTab("validation")}
+              >
+                Validation
+              </button>
+              <button
+                style={activeTab === "live" ? styles.activeTab : styles.inactiveTab}
+                onClick={() => setActiveTab("live")}
+              >
+                Live Trading
+              </button>
             </div>
-            <div style={styles.rightCol}>
-              <AnalysisPanel
-                runs={allRuns}
-                selectedRun={selectedRun}
-                dateWindow={dateWindow}
-              />
+
+            <div style={styles.tabContent}>
+              {activeTab === "dashboard" && (
+                <div style={styles.twoCol}>
+                  <div style={styles.leftCol}>
+                    <StrategyGrid
+                      runs={allRuns}
+                      onSelect={setSelectedRun}
+                      pinnedIds={pinnedIds}
+                      onPin={handlePin}
+                      dateWindow={dateWindow}
+                    />
+                    <StrategyDetails
+                      runs={allRuns}
+                      onWindowChange={setDateWindow}
+                      dateWindow={dateWindow}
+                    />
+                  </div>
+                  <div style={styles.rightCol}>
+                    <AnalysisPanel
+                      runs={allRuns}
+                      selectedRun={selectedRun}
+                      dateWindow={dateWindow}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "statistics" && (
+                <div style={styles.fullWidthCol}>
+                  <AnalysisPanel
+                    runs={allRuns}
+                    selectedRun={selectedRun}
+                    dateWindow={dateWindow}
+                  />
+                </div>
+              )}
+
+              {activeTab === "validation" && (
+                <div style={styles.fullWidthCol}>
+                  <div style={styles.comingSoon}>Advanced validation panels (bootstrapping and CV) will appear here.</div>
+                </div>
+              )}
+
+              {activeTab === "live" && (
+                <div style={styles.fullWidthCol}>
+                  <div style={styles.comingSoon}>Live trading and performance attribution panels will appear here.</div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -89,20 +147,58 @@ const styles: { [key: string]: CSSProperties } = {
     overflow: "hidden"
   },
   sidebar: {
-    width: 340,
-    minWidth: 340,
-    borderRight: "1px solid #2a2f3a",
-    padding: "12px 14px",
-    overflowY: "auto",
+    width: 380,
+    minWidth: 330,
     height: "100vh",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    overflow: "hidden"
   },
   main: {
     flex: 1,
     overflowY: "auto",
-    padding: "12px 20px",
     minWidth: 0,
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column"
+  },
+  mainContent: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%"
+  },
+  tabStrip: {
+    display: "flex",
+    borderBottom: "1px solid #2a2f3a",
+    background: "#0d1117",
+    padding: "12px 20px 0"
+  },
+  activeTab: {
+    padding: "12px 18px",
+    background: "none",
+    border: "none",
+    borderBottom: "2px solid #238636",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.2px",
+    color: "#e6edf3"
+  },
+  inactiveTab: {
+    padding: "12px 18px",
+    background: "none",
+    border: "none",
+    borderBottom: "2px solid transparent",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+    letterSpacing: "0.2px",
+    color: "#8b949e"
+  },
+  tabContent: {
+    flex: 1,
+    padding: "20px",
+    overflowY: "auto"
   },
   twoCol: {
     display: "flex",
@@ -118,14 +214,15 @@ const styles: { [key: string]: CSSProperties } = {
   rightCol: {
     flex: "1 1 0",
     minWidth: 0,
-    position: "sticky",
-    top: 0,
-    alignSelf: "flex-start",
-    height: "calc(100vh - 24px)",
-    overflowY: "auto"
+    alignSelf: "flex-start"
+  },
+  fullWidthCol: {
+    width: "100%",
+    minWidth: 0
   },
   empty: {
     display: "flex",
+    flex: 1,
     height: "100%",
     alignItems: "center",
     justifyContent: "center"
@@ -133,5 +230,14 @@ const styles: { [key: string]: CSSProperties } = {
   emptyText: {
     color: "#8b949e",
     fontSize: 14
+  },
+  comingSoon: {
+    padding: "40px",
+    textAlign: "center",
+    color: "#8b949e",
+    fontSize: 14,
+    border: "1px dashed #30363d",
+    borderRadius: 8,
+    background: "#161b22"
   }
 }
