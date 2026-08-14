@@ -271,14 +271,14 @@ class Optimizer(BaseOptimizer):
 					   	 rebalance_problem: RebalanceProblem, 
 					   	 signals: Signals = None) -> callable:
 		"""Set the objective function based on rebalance problem settings."""
-		objectives = {
-			'apply_max_return_objective': self._set_maximize_return_objective,
-		}
+		# objectives = {
+		# 	'apply_max_return_objective': self._set_maximize_return_objective,
+		# }
 
-		if objectives is None or len(objectives) == 0:
-			objectives = {
-				'apply_max_return_objective': self._set_maximize_return_objective
-		}
+		# if objectives is None or len(objectives) == 0:
+		objectives = {
+			'apply_max_return_objective': self._set_maximize_return_objective
+	}
 
 		for flag, builder in objectives.items():
 			if getattr(rebalance_problem, flag, False):

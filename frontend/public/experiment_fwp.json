@@ -41,7 +41,6 @@
       "rebalance_problem": {
         "strategy_type": "fwp_strategy",
         "optimizer_type": "portfolio_optimizer",
-        "apply_market_caps": false,
         "rebalance_frequency": "weekly",
         "initial_weights": {
           "SPY": 0.142857,
