@@ -47,32 +47,23 @@ class PairsSpreadDiagnostics(BaseMonitor):
 class LongOnlyICDiagnostics(BaseMonitor):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
-                 run: BacktestRun,
-                 risk_free_rate: float = 0.03):
+                 run: BacktestRun):
         self._run = run
-        self._risk_free_rate = risk_free_rate
         self._scores = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
         self._forward_data = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
-        self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
 
         if self._scores is None or self._scores.empty:
             self._scores = None
         
         if self._forward_data is None or self._forward_data.empty:
             self._forward_data = None
-
-        if self._portfolio_returns is None or self._portfolio_returns.empty:
-            self._portfolio_returns = None
         
     def analyze(self) -> MonitoringStats:
         has_ic_data = self._scores is not None and self._forward_data is not None
-        has_port_data = self._portfolio_returns is not None
         ic_sp_series = self._compute_ic_statistics() if has_ic_data else None
-        factor_regression = self._ols_fama_french_factor_regression() if has_port_data else None
         return MonitoringStats(
             ic_statistics={"spearman": ic_sp_series.to_dict()} if ic_sp_series is not None else None,
-            ic_summary=self._compute_ic_summary(ic_sp_series) if ic_sp_series is not None else None,
-            regression_summary=factor_regression.as_text() if factor_regression is not None else None
+            ic_summary=self._compute_ic_summary(ic_sp_series) if ic_sp_series is not None else None
         )
 
     def _compute_ic_statistics(self) -> pd.Series:
@@ -123,11 +114,6 @@ class LongOnlyICDiagnostics(BaseMonitor):
     def _compute_half_life(self, ic_series: pd.Series) -> float:
         """
         Estimate the signal decay half-life from signals using AR(1) autocorrelation.
-
-        Fits a first-order autoregressive model and solves for the number of periods
-        it takes for the autocorrelation to decay to half its initial value.
-        Returns np.nan when phi is outside (0, 1), i.e. the series is non-stationary,
-        mean-reverting with no persistence, or negatively autocorrelated.
         """
         phi = ic_series.autocorr(lag=1)
 
@@ -136,12 +122,33 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
         half_life = np.log(0.5) / np.log(phi)
         return half_life
-    
+
+class FactorRegressionDiagnostics(BaseMonitor):
+    """
+    Performs OLS regression of portfolio excess returns against Fama-French five factors plus momentum (FF5 + MOM).
+    """
+    def __init__(self, 
+                 run: BacktestRun,
+                 risk_free_rate: float = 0.03):
+        self._run = run
+        self._risk_free_rate = risk_free_rate
+        self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
+
+        if self._portfolio_returns is None or self._portfolio_returns.empty:
+            self._portfolio_returns = None
+        
+    def analyze(self) -> MonitoringStats:
+        has_port_data = self._portfolio_returns is not None
+        factor_regression = self._ols_fama_french_factor_regression() if has_port_data else None
+        return MonitoringStats(
+            regression_summary=factor_regression.as_text() if factor_regression is not None else None
+        )
+
     def _ols_fama_french_factor_regression(self):
         """
         Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors plus momentum (FF5 + MOM).
         """
-        ff_factors = self._get_fama_french_five_factors
+        ff_factors = self._get_fama_french_five_factors()
         ff_factors.index = ff_factors.index.to_timestamp()
         # mom_factor = self._get_momentum_factor
         # mom_factor.index = mom_factor.index.to_timestamp()
@@ -182,4 +189,4 @@ class LongOnlyICDiagnostics(BaseMonitor):
     def _trading_days_per_year(self) -> int:
         n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
         trading_days_per_year = round(len(self._portfolio_returns) / n_years)
-        return trading_days_per_year
+        return trading_days_per_year    
