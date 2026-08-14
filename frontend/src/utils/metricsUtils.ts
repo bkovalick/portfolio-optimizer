@@ -78,7 +78,7 @@ export function getCachedIcSeries(run: any): DeserializedIcSeries {
     return icSeriesCache.get(run)!
   }
   const ic_series: DeserializedIcSeries = {
-    ic_series: deserializeToArray(run.monitoring_stats?.ic_statistics)
+    ic_series: deserializeToArray(run.monitoring_stats?.ic_statistics?.spearman)
   }
   icSeriesCache.set(run, ic_series)
   return ic_series

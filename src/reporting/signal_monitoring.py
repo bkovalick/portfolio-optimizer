@@ -139,16 +139,20 @@ class FactorRegressionDiagnostics(BaseMonitor):
         
     def analyze(self) -> MonitoringStats:
         has_port_data = self._portfolio_returns is not None
-        factor_regression = self._ols_fama_french_factor_regression() if has_port_data else None
+        if not has_port_data:
+            return MonitoringStats(
+                regression_summary=None
+            )
+        result = self._ols_fama_french_factor_regression()
         return MonitoringStats(
-            regression_summary=factor_regression.as_text() if factor_regression is not None else None
+            regression_summary=self._format_factor_regression(result)
         )
 
     def _ols_fama_french_factor_regression(self):
         """
         Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors plus momentum (FF5 + MOM).
         """
-        ff_factors = self._get_fama_french_five_factors()
+        ff_factors = self._get_fama_french_five_factors
         ff_factors.index = ff_factors.index.to_timestamp()
         # mom_factor = self._get_momentum_factor
         # mom_factor.index = mom_factor.index.to_timestamp()
@@ -164,8 +168,7 @@ class FactorRegressionDiagnostics(BaseMonitor):
         X = sm.add_constant(X)
         y = regression_data['Asset_Excess_Return']
         model = sm.OLS(y, X).fit()
-        summary = model.summary()
-        return summary
+        return model.get_robustcov_results(cov_type="HAC", maxlags=7)
     
     @property
     def _get_fama_french_five_factors(self):
@@ -189,4 +192,31 @@ class FactorRegressionDiagnostics(BaseMonitor):
     def _trading_days_per_year(self) -> int:
         n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
         trading_days_per_year = round(len(self._portfolio_returns) / n_years)
-        return trading_days_per_year    
+        return trading_days_per_year 
+
+    def _format_factor_regression(self, result) -> dict:
+        parameter_names = result.model.exog_names
+        parameters = dict(zip(parameter_names, result.params))
+        t_statistics = dict(zip(parameter_names, result.tvalues))
+        p_values = dict(zip(parameter_names, result.pvalues))
+
+        return {
+            "model": "FF5 + MOM",
+            "cov_type": "HAC (Newey-West, 7 lags)",
+            "r_squared": float(result.rsquared),
+            "alpha": {
+                "coef": float(parameters["const"]),
+                "t_stat": float(t_statistics["const"]),
+                "p_value": float(p_values["const"]),
+            },
+            "factors": [
+                {
+                    "name": factor_name,
+                    "beta": float(parameters[factor_name]),
+                    "t_stat": float(t_statistics[factor_name]),
+                    "p_value": float(p_values[factor_name]),
+                }
+                for factor_name in parameter_names
+                if factor_name != "const"
+            ],
+        }

@@ -71,7 +71,6 @@ class MLPredictorSignalsState:
             y_list.append(y_t)
 
         if not X_list:
-            logger.warning("Skipping ML retrain at %s because no training samples were built", as_of_date)
             return
 
         X_train = pd.concat(X_list)

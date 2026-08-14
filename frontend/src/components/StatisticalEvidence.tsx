@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis,
   LineChart, Line, ReferenceLine, Tooltip,
 } from "recharts"
-import { getEffectiveSummary } from "../utils/metricsUtils"
+import { getCachedIcSeries, getEffectiveSummary } from "../utils/metricsUtils"
 import type { DateWindow } from "../utils/metricsUtils"
 
 /**
@@ -58,7 +58,12 @@ export default function StatisticalEvidence({ run, dateWindow }: Props) {
     )
   }
 
-  const stats = run.statistics ?? {}
+  const statistics = run.statistics ?? {}
+  const monitoringStats = run.monitoring_stats ?? {}
+  const stats = {
+    ...statistics,
+    factor_regression: statistics.factor_regression ?? monitoringStats.regression_summary,
+  }
   const summary = getEffectiveSummary(run, dateWindow)
 
   return (
@@ -334,15 +339,8 @@ function RollingAlpha({ data }: { data: any[] }) {
 }
 
 function IcPanel({ run }: { run: any }) {
-  const spearman = run?.monitoring_stats?.ic_statistics?.spearman
   const icSummary = run?.monitoring_stats?.ic_summary
-
-  const series = useMemo(() => {
-    if (!spearman) return []
-    return Object.entries(spearman)
-      .map(([date, value]) => ({ date, value: Number(value) }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }, [spearman])
+  const { ic_series: series } = getCachedIcSeries(run)
 
   if (!series.length) return null   // strategy has no cross-sectional signal — IC is a category error
 

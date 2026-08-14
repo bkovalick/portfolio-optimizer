@@ -5,7 +5,7 @@ from typing import Optional
 
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
-from reporting.signal_monitoring import LongOnlyICDiagnostics, PairsSpreadDiagnostics
+from reporting.signal_monitoring import FactorRegressionDiagnostics, LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
 from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
@@ -19,9 +19,48 @@ from models.signals_config import SignalsConfig
 from models.experiment import Experiment
 from infrastructure.market_data_gateway import MarketDataStore
 from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway, StrategyResultsDataGateway
+from models.monitoring_stats import MonitoringStats
 
 logger = logging.getLogger(__name__)
 
+def build_monitors(run, monitoring_type):
+    monitors = []
+
+    strategy_monitor = {
+        "long_only": LongOnlyICDiagnostics,
+        "pairs": PairsSpreadDiagnostics,
+    }.get(monitoring_type)
+
+    if strategy_monitor is not None:
+        monitors.append(strategy_monitor(run))
+
+    monitors.append(FactorRegressionDiagnostics(run))
+
+    return monitors
+
+def merge_monitoring_stats(*stats: Optional[MonitoringStats]) -> MonitoringStats:
+    merged = {
+        "ic_statistics": None,
+        "ic_summary": None,
+        "regression_summary": None,
+    }
+
+    for stat in stats:
+        if stat is None:
+            continue
+        if stat.ic_statistics is not None:
+            merged["ic_statistics"] = stat.ic_statistics
+        if stat.ic_summary is not None:
+            merged["ic_summary"] = stat.ic_summary
+        if stat.regression_summary is not None:
+            merged["regression_summary"] = stat.regression_summary
+
+    return MonitoringStats(
+        ic_statistics=merged["ic_statistics"],
+        ic_summary=merged["ic_summary"],
+        regression_summary=merged["regression_summary"],
+    )
+    
 def build_signal_config(strategy_cfg: dict) -> Optional[SignalsConfig]:
     cfg = strategy_cfg.get("signals_config")
     if not cfg: 
@@ -58,12 +97,16 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     ).run_backtest(rebalance_problem)
     
     portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state_config, benchmark)
-    
-    monitor_ref = {"long_only": LongOnlyICDiagnostics, "pairs": PairsSpreadDiagnostics}.get(rebalance_problem.monitoring_type)
-    portfolio_statistics = monitor_ref(run).analyze() if monitor_ref else None
+
+    stats = [
+        monitor.analyze()
+        for monitor in build_monitors(run, rebalance_problem.monitoring_type)
+    ]
+
+    monitoring_stats = merge_monitoring_stats(*stats)
     
     return StrategyRun(
-        str(uuid.uuid4()), strategy_cfg["name"], rebalance_problem, portfolio_results, portfolio_statistics,
+        str(uuid.uuid4()), strategy_cfg["name"], rebalance_problem, portfolio_results, monitoring_stats,
         {"timestamp": datetime.now(), "username": "bkovalick", "engine_version": "1.0.0"}
     )
 

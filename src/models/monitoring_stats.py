@@ -4,9 +4,7 @@ import pandas as pd
 import numpy as np
 
 def _sanitize_value(v):
-    if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
-        return None
-    if isinstance(v, np.floating) and (np.isnan(v) or np.isinf(v)):
+    if isinstance(v, (float, np.floating)) and not np.isfinite(v):
         return None
     return v
 
@@ -20,7 +18,7 @@ def _sanitize_list(values):
 class MonitoringStats:
     ic_statistics: Optional[Dict[str, Any]] = None
     ic_summary: Optional[Dict[str, Any]] = None
-    regression_summary: Optional[str] = None
+    regression_summary: Optional[Dict[str, Any]] = None
 
     def to_dict(self):
         result = {}
