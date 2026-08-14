@@ -166,7 +166,8 @@ function formatName(name: string) {
   return name.replace("_portfolio", "").replace(/_/g, " ")
 }
 
-const page: CSSProperties = { padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }
+// const page: CSSProperties = { padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }
+const page: CSSProperties = { padding: "20px 24px" }
 const pageHeader: CSSProperties = {
   display: "flex", alignItems: "flex-start", justifyContent: "space-between",
   gap: 16, marginBottom: 16,

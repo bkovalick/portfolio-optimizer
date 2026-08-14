@@ -163,7 +163,8 @@ const rail: CSSProperties = {
   top: 0,
   height: "100vh",
   boxSizing: "border-box",
-  zIndex: 30,
+  zIndex: 60, 
+  // zIndex: 30,
 }
 const toggleBtn: CSSProperties = {
   background: "none",

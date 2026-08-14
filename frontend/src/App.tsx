@@ -163,7 +163,8 @@ const shell: CSSProperties = {
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
 }
 const main: CSSProperties = { flex: 1, minWidth: 0 }
-const resultsPage: CSSProperties = { padding: "16px 20px", maxWidth: 1280, margin: "0 auto" }
+// const resultsPage: CSSProperties = { padding: "16px 20px", maxWidth: 1280, margin: "0 auto" }
+const resultsPage: CSSProperties = { padding: "16px 20px" }
 
 const emptyResults: CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",

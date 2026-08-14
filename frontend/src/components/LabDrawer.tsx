@@ -52,7 +52,8 @@ export default function LabDrawer({ open, onClose, experiment, setExperiment }: 
 
 const backdrop: CSSProperties = {
   position: "fixed",
-  inset: 0,
+  top: 0, right: 0, bottom: 0,
+  left: 56,                        // was inset: 0 — stop at the rail
   background: "rgba(1, 4, 9, 0.6)",
   zIndex: 40,
 }
