@@ -274,6 +274,12 @@ class Optimizer(BaseOptimizer):
 		objectives = {
 			'apply_max_return_objective': self._set_maximize_return_objective,
 		}
+
+		if objectives is None or len(objectives) == 0:
+			objectives = {
+				'apply_max_return_objective': self._set_maximize_return_objective
+		}
+
 		for flag, builder in objectives.items():
 			if getattr(rebalance_problem, flag, False):
 				return builder(decision_variables, rebalance_problem, signals)

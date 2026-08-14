@@ -76,8 +76,8 @@ def run_parameter_sweep():
 if __name__ == '__main__':
     # run_full_suite()
     # run_pairs_strategy()
-    # run_ml_momentum_strategy()
+    run_ml_momentum_strategy()
     # run_ml_mean_reversion_strategy()
     # run_parameter_sweep()
     # run_standard_mean_variance_strategy()
-    run_equal_weight_strategy()
+    # run_equal_weight_strategy()
