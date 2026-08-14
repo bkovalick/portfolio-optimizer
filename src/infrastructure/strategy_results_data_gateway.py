@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 import duckdb as db
@@ -7,6 +8,9 @@ from dataclasses import asdict
 
 from models.experiment import Experiment
 from models.strategy_run import StrategyRun
+
+
+logger = logging.getLogger(__name__)
 
 class _DataclassEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -28,12 +32,14 @@ def _dumps(obj) -> str:
 class GatewayBase:
     def __init__(self, database_name: str):
         self.conn = db.connect(database_name)
+        logger.debug("Opened DuckDB connection to %s", database_name)
 
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.conn.close()
+        logger.debug("Closed DuckDB connection")
 
 class StrategyResultsDataGateway(GatewayBase):
     CREATE_TABLE_STRATEGY_RUN = """
@@ -118,6 +124,7 @@ class StrategyResultsDataGateway(GatewayBase):
         self._ensure_schema()
 
     def _ensure_schema(self):
+        logger.debug("Ensuring strategy results schema")
         self.conn.execute(self.CREATE_TABLE_STRATEGY_RUN)
         self.conn.execute(self.CREATE_TABLE_BACKTEST_SUMMARY)
         self.conn.execute(self.CREATE_TABLE_BACKTEST_SERIES)
@@ -125,59 +132,49 @@ class StrategyResultsDataGateway(GatewayBase):
         self.conn.execute(self.CREATE_TABLE_IC_SERIES)
 
     def save_strategy_run(self, experiment_id: str, run: StrategyRun):
-        d = run.to_dict()
+        run_dict = run.to_dict()
+        logger.info("Saving strategy run %s for experiment %s", run_dict["run_id"], experiment_id)
         self.conn.execute(self.INSERT_STRATEGY_RUN, [
             experiment_id,
-            d["run_id"],
-            d["strategy_name"],
-            _dumps(d["strategy_config"]),
-            _dumps(d["metadata"]),
+            run_dict["run_id"],
+            run_dict["strategy_name"],
+            _dumps(run_dict["strategy_config"]),
+            _dumps(run_dict["metadata"]),
         ])
 
-        self._save_backtest_summary(d)
-        self._save_backtest_series(d)
-        self._save_ic_summary(d)
-        self._save_ic_series(d)
+        self._save_backtest_summary(run_dict)
+        self._save_backtest_series(run_dict)
+        self._save_ic_summary(run_dict)
+        self._save_ic_series(run_dict)
+        logger.debug("Finished saving strategy run %s", run_dict["run_id"])
 
     def _save_backtest_summary(self, backtest_summary: dict):
-        self.conn.execute(self.INSERT_B_SUMMARY [
+        self.conn.execute(self.INSERT_B_SUMMARY, [
             json.dumps(backtest_summary["run_id"]),
             json.dumps(backtest_summary["metric_name"]),
             json.dumps(backtest_summary["value"]),
         ])
 
     def _save_backtest_series(self, backtest_series: dict):
-        self.conn.execute(self.INSERT_B_SERIES [
+        self.conn.execute(self.INSERT_B_SERIES, [
             json.dumps(backtest_series["run_id"]),
             json.dumps(backtest_series["metric_name"]),
             json.dumps(backtest_series["value"]),
         ])
     
     def _save_ic_summary(self, ic_summary: dict):
-        self.conn.execute(self.INSERT_IC_SUMMARY [
+        self.conn.execute(self.INSERT_IC_SUMMARY, [
             json.dumps(ic_summary["run_id"]),
             json.dumps(ic_summary["metric_name"]),
             json.dumps(ic_summary["value"]),
         ])        
 
     def _save_ic_series(self, ic_series: dict):
-        self.conn.execute(self.INSERT_IC_SERIES [
+        self.conn.execute(self.INSERT_IC_SERIES, [
             json.dumps(ic_series["run_id"]),
             json.dumps(ic_series["metric_name"]),
             json.dumps(ic_series["value"]),
-        ])        
-
-    # def save(self, run: StrategyRun):
-    #     # 1. main row
-    #     self.conn.execute(INSERT_RUN, [...])
-        
-    #     # 2. scalar metrics from result
-    #     self.conn.execute(INSERT_METRICS, [run.run_id, run.result.sharpe, ...])
-        
-    #     # 3. time-series — DuckDB can ingest a DataFrame directly
-    #     df = run.result.returns_df          # pandas DataFrame
-    #     df["run_id"] = run.run_id
-    #     self.conn.execute("INSERT INTO strategy_run_returns SELECT * FROM df")        
+        ])     
 
 class ExperimentMetaDataDataGateway(GatewayBase):
     CREATE_TABLE = """
@@ -199,10 +196,12 @@ class ExperimentMetaDataDataGateway(GatewayBase):
         self._ensure_schema()
 
     def _ensure_schema(self):
+        logger.debug("Ensuring experiment metadata schema")
         self.conn.execute(self.CREATE_TABLE)
 
     def save_experiment_instance(self, experiment: Experiment):
         d = experiment.to_dict()
+        logger.info("Saving experiment metadata for %s", d["experiment_id"])
         self.conn.execute(self.INSERT, [
             d["experiment_id"],
             d["created_at"],

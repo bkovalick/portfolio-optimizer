@@ -71,6 +71,7 @@ class ExperimentRunner:
     def __init__(self, config: dict):
         self.config = config
         self.max_workers = min(8, multiprocessing.cpu_count())
+        logger.info("ExperimentRunner initialized with %s strategies", len(self.config.get("strategies", [])))
 
     def _get_market_config(self) -> MarketStoreConfig:
         cfg = self.config.get("market_store_config")
@@ -83,9 +84,11 @@ class ExperimentRunner:
     def run(self) -> Experiment:
         m_cfg = self._get_market_config()
         experiment = self._create_experiment(m_cfg)
+        logger.info("Starting sequential experiment run")
         for strategy_cfg in self.config["strategies"]:
             experiment.add_run(run_strategy_worker(strategy_cfg, m_cfg))
         # self._save_results(experiment)
+        logger.info("Sequential experiment run complete with %s strategy runs", len(experiment.strategy_runs))
         return experiment
 
     def run_parallel(self) -> Experiment:
@@ -99,15 +102,18 @@ class ExperimentRunner:
             for future in as_completed(futures):
                 experiment.add_run(future.result())
         # self._save_results(experiment)
+        logger.info("Parallel experiment run complete with %s strategy runs", len(experiment.strategy_runs))
         return experiment
 
     def _save_results(self, experiment: Experiment):
         db = self.config.get("results_database", "research.duckdb")
+        logger.info("Saving %s strategy runs to %s", len(experiment.strategy_runs), db)
         with ExperimentMetaDataDataGateway(db) as exp_gateway:
             exp_gateway.save_experiment_instance(experiment)
         with StrategyResultsDataGateway(db) as strategy_gateway:
             for run in experiment.strategy_runs:
                 strategy_gateway.save_strategy_run(experiment.experiment_id, run)
+        logger.info("Saved experiment %s results to %s", experiment.experiment_id, db)
 
 if __name__ == "__main__":
     pass

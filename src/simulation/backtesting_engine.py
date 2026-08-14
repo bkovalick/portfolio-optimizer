@@ -1,4 +1,5 @@
 import abc
+import logging
 import time
 import numpy as np
 import pandas as pd
@@ -10,6 +11,9 @@ from models.backtest_run import BacktestRun
 from simulation.market_state import MarketState
 from services.signals_factory import SignalFactory
 from utils.rebalance_steps import FREQ_TO_STEPS
+
+
+logger = logging.getLogger(__name__)
 
 class BacktestingEngineInterface(abc.ABC):
     """Interface for backtesting engines."""
@@ -33,7 +37,11 @@ class BacktestingEngine(BacktestingEngineInterface):
 
     def run_backtest(self, rebalance_problem: RebalanceProblem):
         """Run backtest on the given rebalance problem."""
-        print("Running backtest...")
+        logger.info(
+            "Starting backtest for %s assets at rebalance frequency %s",
+            len(rebalance_problem.investment_universe),
+            rebalance_problem.rebalance_frequency,
+        )
         start_time = time.time()
         self.rebalance_every = self._get_steps(rebalance_problem.rebalance_frequency)
         tickers = rebalance_problem.investment_universe
@@ -57,7 +65,7 @@ class BacktestingEngine(BacktestingEngineInterface):
             date = self.market_state.current_date()
             if date.year != current_year:
                 current_year = date.year
-                print(f"Processing {current_year}...")
+                logger.info("Processing backtest year %s", current_year)
 
             current_returns = self.market_state.investment_returns.iloc[cursor]
 
@@ -71,12 +79,13 @@ class BacktestingEngine(BacktestingEngineInterface):
                 continue
 
             signals = self.signals_factory.build_signals()
+            logger.debug("Rebalance step reached at %s (cursor=%s)", date, cursor)
 
             target_weights = self.strategy.rebalance(signals, prev_weights)
             self.portfolio.apply(target_weights, prev_weights, cursor)
             prev_weights = target_weights
 
-        print(f"Backtest duration: {time.time() - start_time} seconds")
+        logger.info("Backtest completed in %.2f seconds", time.time() - start_time)
         return self._build_backtest_run()
 
     def _is_rebalance_step(self, step):

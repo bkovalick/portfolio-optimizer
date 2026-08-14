@@ -4,6 +4,7 @@ from simulation.market_state import MarketState
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.stattools import coint
+from typing import Dict, List, Tuple
 
 class PairsTradingSignal:
     def __init__(self,
@@ -20,15 +21,15 @@ class PairsTradingSignal:
         self.per_pair_gross = 0.04
 
     def compute_trading_pairs(self, 
-                              current_weights_dict: dict,
-                              existing_pairs: list) -> pd.DataFrame:
+                              current_weights_dict: Dict[str, float],
+                              existing_pairs: List[Tuple[str, str]]) -> pd.DataFrame:
         """
-           Identify pairs of assets that are historically correlated and cointegrated, 
-           build portfolio weights based on the signal and return those weights 
+          Identify pairs of assets that are historically correlated and cointegrated,
+          build portfolio weights based on the signal and return those weights.
         """
         prices = self.market_state.lookback_prices()
-        self.sectors_to_tickers = self.market_state.sectors_to_tickers
-        pairs = self._determine_pairs(prices, existing_pairs)
+        sectors_to_tickers = self.market_state.sectors_to_tickers
+        pairs = self._determine_pairs(prices, sectors_to_tickers, existing_pairs)
         active_pairs = []
         for pair in pairs:
             hedge_ratio = self._hedge_ratio(prices[pair[0]], prices[pair[1]])
@@ -65,19 +66,19 @@ class PairsTradingSignal:
         active_pairs_df["FinalWeight"] = self.per_pair_gross
         return active_pairs_df
 
-    def _hedge_ratio(self, spread_a: pd.Series, spread_b: pd.Series) -> float:
+    def _hedge_ratio(self, price_a: pd.Series, price_b: pd.Series) -> float:
         """Regress B to A"""
-        return np.polyfit(spread_b, spread_a, 1)[0]
+        return np.polyfit(price_b, price_a, 1)[0]
     
     def _compute_spread(self, 
-                        spread_a: pd.Series, 
-                        spread_b: pd.Series,
+                        price_a: pd.Series, 
+                        price_b: pd.Series,
                         beta: float) -> pd.Series:
         """
         Calculate the relationship between the two assets to understand 
         what a "normal" price gap looks like
         """
-        return spread_a - beta * spread_b 
+        return price_a - beta * price_b 
 
     def _compute_zscores(self, spread: pd.Series) -> pd.Series:
         """ 
@@ -89,13 +90,14 @@ class PairsTradingSignal:
     
     def _determine_pairs(self, 
                          prices: pd.DataFrame,
-                         existing_pairs: list) -> list:
+                         sectors_to_tickers: Dict[str, List[str]],
+                         existing_pairs: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
         """
         Identify pairs of assets that are historically correlated and cointegrated, 
         ideally within the same sector.
         """
         pairs = []
-        for sector, tickers in self.sectors_to_tickers.items():
+        for _, tickers in sectors_to_tickers.items():
             if len(tickers) < 2:
                 continue
             px_with_sector = prices[tickers]
@@ -108,13 +110,13 @@ class PairsTradingSignal:
                 if pvalue < self.cointegration_threshold:
                     pairs.append((pair_a, pair_b))
 
-        pairs = list(set(pairs) | set(existing_pairs or []))
-        return pairs
+        unique_pairs = dict.fromkeys(pairs + list(existing_pairs or []))
+        return list(unique_pairs.keys())
 
     def _determine_state(self, 
-                         pair: tuple, 
+                         pair: Tuple[str, str], 
                          zscore: float, 
-                         cw_dict: dict) -> str:
+                         cw_dict: Dict[str, float]) -> str:
         """
         Determine whether to enter a long or short position on the pair, 
         or exit an existing position, based on the current Z-score and existing weights.

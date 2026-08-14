@@ -1,9 +1,13 @@
+import logging
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
 import numpy as np
 from io import BytesIO
 from models.experiment import Experiment
+
+
+logger = logging.getLogger(__name__)
 
 def deserialize_series(data) -> pd.Series:
     """Deserialize a series from JSON round-trip (handles {index, values} format and plain dicts)."""
@@ -182,7 +186,7 @@ class ExcelGenerator:
                     weights_df.insert(7, "PortfolioTrades", trades_series.values[:min_len])
                     portfolio_dfs.append(weights_df)
                 except Exception as e:
-                    print(f"Warning: could not build time series for {strategy_name}: {e}")
+                    logger.warning("Could not build time series for %s: %s", strategy_name, e)
 
             # Rolling time series
             if "rolling_returns" in series:
@@ -199,7 +203,7 @@ class ExcelGenerator:
                     })
                     rolling_dfs.append(rolling_df)
                 except Exception as e:
-                    print(f"Warning: could not build rolling series for {strategy_name}: {e}")
+                    logger.warning("Could not build rolling series for %s: %s", strategy_name, e)
 
         # Add benchmark summary row
         benchmark_name = self.config.get("benchmark", "Benchmark")
@@ -265,7 +269,7 @@ class ExcelGenerator:
                         "turnover": None,
                     })
                 except Exception as e:
-                    print(f"Warning: could not build benchmark summary row: {e}")
+                    logger.warning("Could not build benchmark summary row: %s", e)
                 break
 
         summary_df = pd.DataFrame(summary_rows)
