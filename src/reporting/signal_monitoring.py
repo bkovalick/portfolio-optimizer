@@ -10,11 +10,12 @@ from pandas_datareader import data as web
 from models.monitoring_stats import MonitoringStats
 from models.backtest_run import BacktestRun
 
-class BaseMonitor(abc.ABC):
+class BaseDiagnostic(abc.ABC):
     @abc.abstractmethod
     def analyze(self) -> MonitoringStats: ...
 
-class PairsSpreadDiagnostics(BaseMonitor):
+class PairsSpreadDiagnostics(BaseDiagnostic):
+    """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
                  run: BacktestRun):
         self._run = run
@@ -43,32 +44,26 @@ class PairsSpreadDiagnostics(BaseMonitor):
         ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
         return pd.Series([ic_sp], dtype=float)
     
-class LongOnlyICDiagnostics(BaseMonitor):
+class LongOnlyICDiagnostics(BaseDiagnostic):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
-                 run: BacktestRun,
-                 risk_free_rate: float = 0.03):
+                 run: BacktestRun):
         self._run = run
-        self._risk_free_rate = risk_free_rate
         self._scores = pd.DataFrame(run.scores_history).T if run.scores_history is not None else None
         self._forward_data = pd.DataFrame(run.fwd_history).T if run.fwd_history is not None else None
-        self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
 
         if self._scores is None or self._scores.empty:
-            raise ValueError("Scores history is empty or None. Cannot compute diagnostics.")
+            self._scores = None
         
         if self._forward_data is None or self._forward_data.empty:
-            raise ValueError("Forward returns history is empty or None. Cannot compute diagnostics.")
-
-        if self._portfolio_returns is None or self._portfolio_returns.empty:
-            raise ValueError("Portfolio returns are empty or None. Cannot compute diagnostics.")
+            self._forward_data = None
         
     def analyze(self) -> MonitoringStats:
-        ic_sp_series = self._compute_ic_statistics()
-        factor_regression = self._ols_fama_french_factor_regression()
+        has_ic_data = self._scores is not None and self._forward_data is not None
+        ic_sp_series = self._compute_ic_statistics() if has_ic_data else None
         return MonitoringStats(
-            ic_statistics={"spearman": ic_sp_series.to_dict()},
-            ic_summary=self._compute_ic_summary(ic_sp_series)
+            ic_statistics={"spearman": ic_sp_series.to_dict()} if ic_sp_series is not None else None,
+            ic_summary=self._compute_ic_summary(ic_sp_series) if ic_sp_series is not None else None
         )
 
     def _compute_ic_statistics(self) -> pd.Series:
@@ -119,11 +114,6 @@ class LongOnlyICDiagnostics(BaseMonitor):
     def _compute_half_life(self, ic_series: pd.Series) -> float:
         """
         Estimate the signal decay half-life from signals using AR(1) autocorrelation.
-
-        Fits a first-order autoregressive model and solves for the number of periods
-        it takes for the autocorrelation to decay to half its initial value.
-        Returns np.nan when phi is outside (0, 1), i.e. the series is non-stationary,
-        mean-reverting with no persistence, or negatively autocorrelated.
         """
         phi = ic_series.autocorr(lag=1)
 
@@ -132,27 +122,53 @@ class LongOnlyICDiagnostics(BaseMonitor):
 
         half_life = np.log(0.5) / np.log(phi)
         return half_life
-    
+
+class FactorRegressionDiagnostics(BaseDiagnostic):
+    """
+    Performs OLS regression of portfolio excess returns against Fama-French five factors plus momentum (FF5 + MOM).
+    """
+    def __init__(self, 
+                 run: BacktestRun,
+                 risk_free_rate: float = 0.03):
+        self._run = run
+        self._risk_free_rate = risk_free_rate
+        self._portfolio_returns = pd.Series(run.portfolio.returns) if run.portfolio is not None else None
+
+        if self._portfolio_returns is None or self._portfolio_returns.empty:
+            self._portfolio_returns = None
+        
+    def analyze(self) -> MonitoringStats:
+        has_port_data = self._portfolio_returns is not None
+        if not has_port_data:
+            return MonitoringStats(
+                regression_summary=None
+            )
+        result = self._ols_fama_french_factor_regression()
+        return MonitoringStats(
+            regression_summary=self._format_factor_regression(result)
+        )
+
     def _ols_fama_french_factor_regression(self):
         """
         Performs an OLS regression of the portfolio's excess returns against the Fama-French five factors plus momentum (FF5 + MOM).
         """
         ff_factors = self._get_fama_french_five_factors
         ff_factors.index = ff_factors.index.to_timestamp()
-        mom_factor = self._get_momentum_factor
-        mom_factor.index = mom_factor.index.to_timestamp()
-        factors = ff_factors.join(mom_factor, how='inner')
+        # mom_factor = self._get_momentum_factor
+        # mom_factor.index = mom_factor.index.to_timestamp()
+        # factors = ff_factors.join(mom_factor, how='inner')
+        factors = ff_factors
         regression_data = pd.merge(
             self._portfolio_returns.to_frame("Returns"), factors, left_index=True, right_index=True
         )
         regression_data['Asset_Excess_Return'] = regression_data['Returns'] - \
             self._risk_free_rate / self._trading_days_per_year
-        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']]
+        X = regression_data[['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA']]
+        # , 'Mom']]
         X = sm.add_constant(X)
         y = regression_data['Asset_Excess_Return']
         model = sm.OLS(y, X).fit()
-        summary = model.summary()
-        return summary
+        return model.get_robustcov_results(cov_type="HAC", maxlags=7)
     
     @property
     def _get_fama_french_five_factors(self):
@@ -176,4 +192,31 @@ class LongOnlyICDiagnostics(BaseMonitor):
     def _trading_days_per_year(self) -> int:
         n_years = (self._portfolio_returns.index[-1] - self._portfolio_returns.index[0]).days / 365.25
         trading_days_per_year = round(len(self._portfolio_returns) / n_years)
-        return trading_days_per_year
+        return trading_days_per_year 
+
+    def _format_factor_regression(self, result) -> dict:
+        parameter_names = result.model.exog_names
+        parameters = dict(zip(parameter_names, result.params))
+        t_statistics = dict(zip(parameter_names, result.tvalues))
+        p_values = dict(zip(parameter_names, result.pvalues))
+
+        return {
+            "model": "FF5 + MOM",
+            "cov_type": "HAC (Newey-West, 7 lags)",
+            "r_squared": float(result.rsquared),
+            "alpha": {
+                "coef": float(parameters["const"]),
+                "t_stat": float(t_statistics["const"]),
+                "p_value": float(p_values["const"]),
+            },
+            "factors": [
+                {
+                    "name": factor_name,
+                    "beta": float(parameters[factor_name]),
+                    "t_stat": float(t_statistics[factor_name]),
+                    "p_value": float(p_values[factor_name]),
+                }
+                for factor_name in parameter_names
+                if factor_name != "const"
+            ],
+        }

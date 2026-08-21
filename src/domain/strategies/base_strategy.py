@@ -1,6 +1,7 @@
 import abc
 import numpy as np
 from models.rebalance_problem import RebalanceProblem
+from models.backtest_run import BacktestRun
 from domain.signals.signals import Signals
 from domain.optimizers.optimizer import Optimizer
 
@@ -11,8 +12,15 @@ class BaseStrategy(abc.ABC):
         self.rebalance_problem = rebalance_problem
         self.optimizer = optimizer or Optimizer()
 
+    def get_diagnostics(self) -> dict:
+        """
+        Returns a dictionary of strategy-specific diagnostic data (e.g. caches).
+        Should be overridden by subclasses if they generate diagnostics.
+        """
+        return {}
+
     @abc.abstractmethod
-    def rebalance(self, signals, current_weights):
+    def rebalance(self, signals: Signals, current_weights: np.ndarray):
         raise NotImplementedError("Derived classes must implement 'rebalance' method")
     
     def _apply_vol_targeting(self, 

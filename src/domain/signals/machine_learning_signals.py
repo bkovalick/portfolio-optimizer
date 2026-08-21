@@ -1,3 +1,9 @@
+import logging
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+
 from domain.signals.risk_return_signals import RiskReturnSignals
 from domain.machine_learning.return_predictor import ReturnPredictor
 from domain.machine_learning.feature_builder import FeatureBuilder
@@ -5,9 +11,8 @@ from models.signals_config import SignalsConfig
 from models.machine_learning_config import MachineLearningConfig
 from simulation.market_state import MarketState
 
-import pandas as pd
-import numpy as np
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class MLPredictorSignalsState:
     """
@@ -39,10 +44,18 @@ class MLPredictorSignalsState:
         """
         if not self._should_retrain(cursor):
             return 
+
+        logger.info("Retraining ML predictor at %s (cursor=%s)", as_of_date, cursor)
         
         train_end = cursor - self.horizon
         train_start = train_end - self.training_window
         if train_start < 0 or train_end <= 0:
+            logger.warning(
+                "Skipping ML retrain at %s due to insufficient history (train_start=%s, train_end=%s)",
+                as_of_date,
+                train_start,
+                train_end,
+            )
             return
 
         dates = self.feature_builder.prices.index
@@ -67,13 +80,14 @@ class MLPredictorSignalsState:
         self._coefficient_history(X_train, as_of_date)
         X_now = self.feature_builder.build(as_of_date)
         if X_now.empty:
+            logger.warning("Skipping ML score generation at %s because current features are empty", as_of_date)
             return
 
         scores = self.model.predict(X_now)
         self.cached_scores = pd.Series(scores, index=X_now.index)
         self.scores_history[as_of_date] = self.cached_scores.copy()
+        logger.info("Cached ML scores for %s assets at %s", len(self.cached_scores), as_of_date)
 
-        # Back-fill realized forward returns for any prediction dates that have now matured
         for pred_date, pred_scores in list(self.scores_history.items()):
             if pred_date in self.fwd_returns_history:
                 continue
@@ -96,6 +110,7 @@ class MLPredictorSignalsState:
                 self.model.model.coef_,
                 index=X_train.columns
             )
+            logger.debug("Stored ML coefficients for %s features at %s", len(X_train.columns), as_of_date)
     
     @property
     def scores(self) -> pd.Series:
@@ -113,17 +128,32 @@ class MLPredictorSignal(RiskReturnSignals):
                  predictor_state: MLPredictorSignalsState):
         super().__init__(market_state, signals_cfg)
 
-        self.ml_config = ml_config
-        self.predictor_state = predictor_state
+        self._ml_config = ml_config
+        self._predictor_state = predictor_state
 
+    @property
+    def _warmup(self) -> int:
+        return self._ml_config.training_window + self._ml_config.horizon
+    
+    def update(self, cursor: int, as_of_date: datetime):
+        if cursor >= self._warmup:
+            self._predictor_state.update(cursor, as_of_date)
+
+    def get_diagnostics(self):
+        return {
+            "scores_history": self._predictor_state.scores_history,
+            "fwd_history": self._predictor_state.fwd_returns_history,
+        }
+                
     def mean_returns(self):
-        if not self.ml_config.enabled:
+        if not self._ml_config.enabled:
             return super().mean_returns()
-        if self.predictor_state.scores is None:
+        if self._predictor_state.scores is None:
             return super().mean_returns()
         universe = self.market_state.investment_universe
-        scores = self.predictor_state.scores.reindex(universe).to_numpy(dtype=float)
+        scores = self._predictor_state.scores.reindex(universe).to_numpy(dtype=float)
         if np.isnan(scores).any():
+            logger.warning("ML scores contained %s NaNs; falling back for missing values", np.isnan(scores).sum())
             fallback = super().mean_returns()
             nan_mask = np.isnan(scores)
             scores[nan_mask] = fallback[nan_mask]

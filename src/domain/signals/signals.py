@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 import numpy as np
 import pandas as pd
 import logging
@@ -28,6 +30,14 @@ class Signals(ABC):
     
     def lookback_prices(self) -> pd.DataFrame:
         return self.market_state.lookback_prices()
+    
+    def update(self, cursor: int, as_of_date: pd.Timestamp) -> None:
+        """Per-step heartbeat. Stateless signals inherit doing nothing."""
+        pass
+
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Measurement artifacts accumulated during the run."""
+        return {}
 
     @abstractmethod
     def mean_returns(self) -> np.ndarray: ...

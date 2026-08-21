@@ -1,12 +1,10 @@
-from dataclasses import dataclass
-from typing import Dict, Any
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
 def _sanitize_value(v):
-    if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
-        return None
-    if isinstance(v, np.floating) and (np.isnan(v) or np.isinf(v)):
+    if isinstance(v, (float, np.floating)) and not np.isfinite(v):
         return None
     return v
 
@@ -18,17 +16,22 @@ def _sanitize_list(values):
 
 @dataclass(frozen=True)
 class MonitoringStats:
-    ic_statistics: Dict[str, Any]
-    ic_summary: Dict[str, Any]
+    ic_statistics: Optional[Dict[str, Any]] = None
+    ic_summary: Optional[Dict[str, Any]] = None
+    regression_summary: Optional[Dict[str, Any]] = None
 
     def to_dict(self):
-        return {
-            "ic_statistics": { 
-                k: self._serialize(v) 
-                for k,v in self.ic_statistics.items()
-            },       
-            "ic_summary": _sanitize_dict(self.ic_summary)
-        }
+        result = {}
+        if self.ic_statistics is not None:
+            result["ic_statistics"] = {
+                k: self._serialize(v)
+                for k, v in self.ic_statistics.items()
+            }
+        if self.ic_summary is not None:
+            result["ic_summary"] = _sanitize_dict(self.ic_summary)
+        if self.regression_summary is not None:
+            result["regression_summary"] = self.regression_summary
+        return result
     
     def _serialize(self, obj):
         if isinstance(obj, pd.Series):

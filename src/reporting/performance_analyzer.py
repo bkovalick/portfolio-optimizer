@@ -73,7 +73,8 @@ class PerformanceAnalyzer:
         rolling_dd = align_series_to_dataframe(cumulative_returns.copy(), rolling_dd)
 
         max_drawdown = abs(self._calculate_max_drawdown(drawdown_returns))
-        max_drawdown_days = self._calculate_max_drawdown_days(drawdown_returns)
+        max_drawdown_duration = self._calculate_max_drawdown_days(drawdown_returns)
+        avg_drawdown = abs(self._calculate_avg_drawdown(drawdown_returns))
         tracking_error = self._calculate_tracking_error(portfolio_returns, benchmark_returns)
         information_ratio = self._calculate_information_ratio(annualized_return, portfolio_returns, benchmark_returns)
         performance_metrics = {
@@ -93,10 +94,10 @@ class PerformanceAnalyzer:
             "sharpe_ratio": sharpe_ratio,
             "sortino_ratio": self._calculate_sortino_ratio(arithmetic_annualized_return, portfolio_returns, risk_free_rate),
             "max_drawdown": max_drawdown,
-            "max_drawdown_days": max_drawdown_days,
-            "avg_drawdown": self._calculate_avg_drawdown(drawdown_returns),
+            "max_drawdown_duration": max_drawdown_duration,
+            "avg_drawdown": avg_drawdown,   
             "turnover": portfolio_turnover.mean() * self._annual_trading_days,
-            "alpha": self._calculate_alpha(portfolio_returns, self._annual_trading_days, benchmark_returns),
+            "excess_return": self._calculate_excess_return(portfolio_returns, self._annual_trading_days, benchmark_returns),
             "calmar_ratio": annualized_return / max_drawdown if max_drawdown != 0 else 0.0,
             "tracking_error": tracking_error,
             "information_ratio": information_ratio,
@@ -117,7 +118,7 @@ class PerformanceAnalyzer:
             "cvar_95":   portfolio_returns[portfolio_returns < var_95 ].mean() if (portfolio_returns < var_95 ).any() else 0.0,
             "cvar_97.5": portfolio_returns[portfolio_returns < var_975].mean() if (portfolio_returns < var_975).any() else 0.0,
             "cvar_99":   portfolio_returns[portfolio_returns < var_99 ].mean() if (portfolio_returns < var_99 ).any() else 0.0,
-            "alpha_decay": self._calculate_alpha(
+            "excess_return_decay": self._calculate_excess_return(
                 portfolio_returns[-self._annual_trading_days:],
                 self._annual_trading_days,
                 benchmark_returns[-self._annual_trading_days:]
@@ -132,12 +133,12 @@ class PerformanceAnalyzer:
             return 0.0
         return (annualized_return - risk_free_rate) / (downside_std * np.sqrt(self._annual_trading_days))
     
-    def _calculate_max_drawdown(self, cumulative_returns: pd.Series):
+    def _calculate_max_drawdown(self, cumulative_returns: pd.Series) -> float:
         """Calculate maximum drawdown from cumulative returns."""
         wealth = 1 + cumulative_returns
         running_max = wealth.cummax()
         drawdown = (wealth - running_max) / running_max
-        return drawdown.min()
+        return float(drawdown.min())
 
     def _calculate_max_drawdown_days(self, cumulative_returns: pd.Series) -> int:
         """Calculate the longest drawdown duration in periods (peak to recovery or end)."""
@@ -196,11 +197,11 @@ class PerformanceAnalyzer:
             return 0.0
         return active_return / tracking_error        
 
-    def _calculate_alpha(self,
+    def _calculate_excess_return(self,
                          portfolio_returns: pd.Series,
                          annualization_factor: int, 
                          benchmark_returns: pd.Series):
-        """Calculate alpha of the portfolio against a benchmark."""
+        """Calculate excess return of the portfolio against a benchmark."""
         aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1, join='inner')
         aligned.columns = ['portfolio', 'benchmark']
 
@@ -245,9 +246,9 @@ class PerformanceAnalyzer:
             "sortino_ratio": performance_metrics["sortino_ratio"],
             "max_drawdown": performance_metrics["max_drawdown"],
             "avg_drawdown": performance_metrics["avg_drawdown"],
-            "max_drawdown_duration": performance_metrics["max_drawdown_days"],
+            "max_drawdown_duration": performance_metrics["max_drawdown_duration"],
             "turnover": performance_metrics["turnover"],
-            "alpha": performance_metrics["alpha"],
+            "excess_return": performance_metrics["excess_return"],
             "calmar_ratio": performance_metrics["calmar_ratio"],
             "tracking_error": performance_metrics["tracking_error"],
             "information_ratio": performance_metrics["information_ratio"],
@@ -263,7 +264,7 @@ class PerformanceAnalyzer:
             "cvar_95": performance_metrics["cvar_95"],
             "cvar_97.5": performance_metrics["cvar_97.5"],
             "cvar_99": performance_metrics["cvar_99"],
-            "alpha_decay": performance_metrics["alpha_decay"]
+            "excess_return_decay": performance_metrics["excess_return_decay"]
         }
 
 

@@ -1,298 +1,208 @@
+import numpy as np
+import uuid, logging, multiprocessing, pandas as pd
+from datetime import datetime
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Optional
+
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
-from reporting.signal_monitoring import LongOnlyICDiagnostics, PairsSpreadDiagnostics
+from reporting.diagnostics import FactorRegressionDiagnostics, LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
 from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
 from services.optimizer_factory import OptimizerFactory
 from services.rebalance_problem_builder import RebalanceProblemBuilder
+from services.signals_factory import SignalFactory
 from models.strategy_run import StrategyRun
 from models.market_config import MarketStoreConfig, MarketStateConfig
 from models.rebalance_config import RebalanceProblemConfig
 from models.signals_config import SignalsConfig
-from models.rebalance_problem import RebalanceProblem
 from models.experiment import Experiment
-from models.monitoring_stats import MonitoringStats
-from models.backtest_run import BacktestRun
+from models.backtest_result import BacktestResult
 from infrastructure.market_data_gateway import MarketDataStore
 from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway, StrategyResultsDataGateway
-
-import uuid
-import logging
-from datetime import datetime
-import pandas as pd
-import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from models.monitoring_stats import MonitoringStats
 
 logger = logging.getLogger(__name__)
 
-def build_signal_config(strategy_cfg: dict) -> SignalsConfig:
-    logger.info(f"Building signal configuration for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-    signals_config = strategy_cfg.get("signals_config", None)
-    if signals_config is None:
-        raise ValueError("Error: Signal configuration must be present to run a backtest")
-    market_frequency = strategy_cfg.get("market_state_config", {}).get("market_frequency", "d")
-    return SignalsConfig.from_dict(signals_config, market_frequency)
+def build_monitors(run, monitoring_type):
+    monitors = []
+
+    strategy_monitor = {
+        "long_only": LongOnlyICDiagnostics,
+        "pairs": PairsSpreadDiagnostics,
+    }.get(monitoring_type)
+
+    if strategy_monitor is not None:
+        monitors.append(strategy_monitor(run))
+
+    monitors.append(FactorRegressionDiagnostics(run))
+
+    return monitors
+
+def merge_monitoring_stats(*stats: Optional[MonitoringStats]) -> MonitoringStats:
+    merged = {
+        "ic_statistics": None,
+        "ic_summary": None,
+        "regression_summary": None,
+    }
+
+    for stat in stats:
+        if stat is None:
+            continue
+        if stat.ic_statistics is not None:
+            merged["ic_statistics"] = stat.ic_statistics
+        if stat.ic_summary is not None:
+            merged["ic_summary"] = stat.ic_summary
+        if stat.regression_summary is not None:
+            merged["regression_summary"] = stat.regression_summary
+
+    return MonitoringStats(
+        ic_statistics=merged["ic_statistics"],
+        ic_summary=merged["ic_summary"],
+        regression_summary=merged["regression_summary"],
+    )
+    
+def build_signal_config(strategy_cfg: dict) -> Optional[SignalsConfig]:
+    cfg = strategy_cfg.get("signals_config")
+    if not cfg: 
+        return None
+    return SignalsConfig.from_dict(cfg, strategy_cfg.get("market_state_config", {}).get("market_frequency", "d"))
 
 def build_market_state_config(strategy_cfg: dict) -> MarketStateConfig:
-    logger.info(f"Building market state configuration for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-    market_state_config = strategy_cfg.get("market_state_config", None)
-    if market_state_config is None:
-        raise ValueError("Error: Market state configuration must be present to run a backtest")
-    return MarketStateConfig.from_dict(market_state_config)
+    cfg = strategy_cfg.get("market_state_config")
+    if not cfg: raise ValueError("Error: Market state configuration must be present to run a backtest")
+    return MarketStateConfig.from_dict(cfg)
 
-def compute_monitoring_stats(rebalance_problem: RebalanceProblem, 
-                             run: BacktestRun) -> MonitoringStats | None:
-    """Computes monitoring statistics based on backtest results """
-    monitor_ref = {
-        "long_only": LongOnlyICDiagnostics,
-        "pairs": PairsSpreadDiagnostics
-    }.get(rebalance_problem.monitoring_type, None)
+def build_signals_factory(strategy_cfg: dict, market_state: MarketState, benchmark: pd.Series) -> SignalFactory:
+    signal_config = build_signal_config(strategy_cfg)
+    signals_factory = SignalFactory(signal_config, market_state, benchmark)
+    return signals_factory
 
-    if monitor_ref is None:
-        logger.warning(f"No monitoring reference found for monitoring type: {rebalance_problem.monitoring_type}. \
-                       Skipping monitoring stats computation.")
-        return None
-    
-    monitor = monitor_ref(run) # need the risk free rate but 3% default is being used for now.
-    return monitor.analyze()
-
-def compute_portfolio_statistics(metrics_computer: PerformanceAnalyzer,
-                                 rebalance_problem: RebalanceProblem,
-                                 run: BacktestRun,
-                                 market_store_config: MarketStoreConfig,
-                                 market_state_config: MarketStateConfig,
-                                 benchmark_index: pd.Series) -> tuple[dict, dict]:
-    """Compute portfolio statistics and monitoring stats for a given backtest run."""
-    portfolio_results = metrics_computer.compute(
-        run.portfolio, 
-        market_store_config, 
-        market_state_config,
-        benchmark_index
-    )
-
-    portfolio_staistics = compute_monitoring_stats(rebalance_problem, run)
-    return portfolio_results, portfolio_staistics
-
-def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig):
-    logger.info(f"Running strategy worker for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
+def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig) -> StrategyRun:
+    logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
+    print(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
     market_store = MarketDataStore(market_store_config)
-    portfolio = Portfolio()
-    metrics_computer = PerformanceAnalyzer()
-
     market_state_config = build_market_state_config(strategy_cfg)
     market_state = MarketState(market_store, market_state_config)
 
     rebalance_problem = RebalanceProblemBuilder(
-        RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]), 
-        market_state
+        RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]), market_state
     ).build()
     
-    signals_config = build_signal_config(strategy_cfg)
-
-    optimizer = OptimizerFactory.create_optimizer(rebalance_problem.optimizer_type) 
+    optimizer = OptimizerFactory.create_optimizer(rebalance_problem.optimizer_type)
     strategy = StrategyFactory.create_strategy(rebalance_problem, optimizer)
-
     benchmark = market_store.prices[market_store_config.benchmark]
-    engine = BacktestingEngine(
-        portfolio,
-        strategy,
-        market_state,
-        signals_config,
-        benchmark
-    )
+    signals_factory = build_signals_factory(strategy_cfg, market_state, benchmark)
+    
+    run = BacktestingEngine(
+        Portfolio(), strategy, market_state, signals_factory, benchmark
+    ).run_backtest(rebalance_problem)
+    
+    portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state_config, benchmark)
 
-    run = engine.run_backtest(rebalance_problem)
-    portfolio_results, portfolio_statistics = compute_portfolio_statistics(
-        metrics_computer,
-        rebalance_problem, 
-        run,
-        market_store_config,
-        market_state_config,
-        benchmark
-    )
+    stats = [
+        monitor.analyze()
+        for monitor in build_monitors(run, rebalance_problem.monitoring_type)
+    ]
 
-    run_id = str(uuid.uuid4())
+    monitoring_stats = merge_monitoring_stats(*stats)
+    
     return StrategyRun(
-        run_id, 
-        strategy_cfg["name"],
-        rebalance_problem, 
-        portfolio_results, 
-        portfolio_statistics,
-        {
-            "timestamp": datetime.now(), 
-            "username": "bkovalick", 
-            "engine_version": "1.0.0"
-        }
-    )    
+        str(uuid.uuid4()), strategy_cfg["name"], rebalance_problem, portfolio_results, monitoring_stats,
+        {"timestamp": datetime.now(), "username": "bkovalick", "engine_version": "1.0.0"}
+    )
 
 class ExperimentRunner:
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.config = config
         self.max_workers = min(8, multiprocessing.cpu_count())
-        self.max_workers = 4
- 
+        logger.info("ExperimentRunner initialized with %s strategies", len(self.config.get("strategies", [])))
+        print(f"ExperimentRunner initialized with {len(self.config.get('strategies', []))} strategies")
+
+    def _get_market_config(self) -> MarketStoreConfig:
+        cfg = self.config.get("market_store_config")
+        if not cfg: raise ValueError("Error: Market store configuration must be present")
+        return MarketStoreConfig.from_dict(cfg)
+
+    def _create_experiment(self, m_cfg: MarketStoreConfig) -> Experiment:
+        return Experiment(experiment_id=str(uuid.uuid4()), created_at=datetime.now(), market_config=m_cfg)
+
     def run(self) -> Experiment:
-        market_store_config = self._build_market_store_config()
-        market_store = self._build_market_store(market_store_config)
-        experiment = self._create_experiment(market_store_config)
+        m_cfg = self._get_market_config()
+        experiment = self._create_experiment(m_cfg)
+        logger.info("Starting sequential experiment run")
         for strategy_cfg in self.config["strategies"]:
-            logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-            run = self._run_strategy(strategy_cfg, market_store, market_store_config)
-            experiment.add_run(run)
+            experiment.add_run(run_strategy_worker(strategy_cfg, m_cfg))
+        experiment.add_run(self._build_benchmark_run(m_cfg, experiment))
         # self._save_results(experiment)
+        logger.info("Sequential experiment run complete with %s strategy runs", len(experiment.strategy_runs))
+        print("Sequential experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
-    
+
     def run_parallel(self) -> Experiment:
-        market_store_config = self._build_market_store_config()
-        experiment = self._create_experiment(market_store_config)
+        m_cfg = self._get_market_config()
+        experiment = self._create_experiment(m_cfg)
         strategies = self.config["strategies"]
+        
         logger.info(f"Running {len(strategies)} strategies in parallel with max_workers={self.max_workers}")
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [
-                executor.submit(run_strategy_worker,
-                                strategy_cfg, market_store_config
-                )
-                for strategy_cfg in strategies
-            ]
-
+            futures = [executor.submit(run_strategy_worker, s_cfg, m_cfg) for s_cfg in strategies]
             for future in as_completed(futures):
-                run = future.result()
-                experiment.add_run(run)
-
+                experiment.add_run(future.result())
+        experiment.add_run(self._build_benchmark_run(m_cfg, experiment))
         # self._save_results(experiment)
+        logger.info("Parallel experiment run complete with %s strategy runs", len(experiment.strategy_runs))
+        print("Parallel experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
-    
-    def _run_strategy(self, 
-                      strategy_cfg: dict, 
-                      market_store: MarketDataStore, 
-                      market_store_config: MarketStoreConfig) -> StrategyRun:
-        logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-        portfolio = Portfolio()
-        metrics_computer = PerformanceAnalyzer()
 
-        state_config = self._build_market_state_config(strategy_cfg)
-        state = self._build_market_state(market_store, state_config)
-
-        rebalance_problem = self._build_rebalance_problem(strategy_cfg, state)
-
-        signals_config = self._build_signal_config(strategy_cfg)
-
-        optimizer = OptimizerFactory.create_optimizer(rebalance_problem.optimizer_type) 
-        strategy = StrategyFactory.create_strategy(rebalance_problem, optimizer)
-
-        benchmark = market_store.prices[market_store_config.benchmark]
-        engine = BacktestingEngine(
-            portfolio,
-            strategy,
-            state,
-            signals_config,
-            benchmark
-        )
-
-        run = engine.run_backtest(rebalance_problem)
-        portfolio_results, portfolio_statistics = compute_portfolio_statistics(
-            metrics_computer,
-            rebalance_problem, 
-            run,
-            market_store_config,
-            state_config,
-            benchmark
-        )
-
-        run_id = str(uuid.uuid4())
-        return StrategyRun(
-            run_id, 
-            strategy_cfg["name"],
-            rebalance_problem, 
-            portfolio_results,
-            portfolio_statistics, 
-            {
-                "timestamp": datetime.now(), 
-                "username": "bkovalick", 
-                "engine_version": "1.0.0"
-            }
-        )
-    
-    def _create_experiment(self, market_store_cfg: dict) -> Experiment:
-        logger.info(f"Creating experiment with market store configuration: {market_store_cfg}")
-        return Experiment(
-            experiment_id = str(uuid.uuid4()), 
-            created_at = datetime.now(),
-            market_config = market_store_cfg 
-        )
-    
     def _save_results(self, experiment: Experiment):
-        logger.info(f"Saving experiment results for experiment ID: {experiment.experiment_id}")
-        self._save_experiment(experiment)
-        for run in experiment.strategy_runs:
-            self._save_strategy_run(experiment.experiment_id, run)
+        db = self.config.get("results_database", "research.duckdb")
+        logger.info("Saving %s strategy runs to %s", len(experiment.strategy_runs), db)
+        print("Saving %s strategy runs to %s" % (len(experiment.strategy_runs), db))
+        with ExperimentMetaDataDataGateway(db) as exp_gateway:
+            exp_gateway.save_experiment_instance(experiment)
+        with StrategyResultsDataGateway(db) as strategy_gateway:
+            for run in experiment.strategy_runs:
+                strategy_gateway.save_strategy_run(experiment.experiment_id, run)
+        logger.info("Saved experiment %s results to %s", experiment.experiment_id, db)
+        print("Saved experiment %s results to %s" % (experiment.experiment_id, db))
 
-    def _save_experiment(self, experiment: Experiment):
-        logger.info(f"Saving experiment metadata for experiment ID: {experiment.experiment_id}")
-        database_name = self.config.get("results_database", "research.duckdb")
-        with ExperimentMetaDataDataGateway(database_name) as exp_gateway:
-            exp_gateway.save_experiment_instance(
-                experiment
-            )
+    def _build_benchmark_run(self, m_cfg: MarketStoreConfig, experiment: Experiment) -> StrategyRun:
+        first = experiment.strategy_runs[0]
+        state_cfg = build_market_state_config(self.config["strategies"][0])
+        dates = first.result.series["portfolio_returns"].index
 
-    def _save_strategy_run(self, experiment_id: str, run: StrategyRun):
-        logger.info(f"Saving strategy run results for run ID: {run.run_id}")
-        database_name = self.config.get("results_database", "research.duckdb")
-        with StrategyResultsDataGateway(database_name) as strategy_gateway:
-            strategy_gateway.save_strategy_run(experiment_id, run)
+        store = MarketDataStore(m_cfg)
+        bench_prices = store.prices[m_cfg.benchmark]
+        rule = {"d": "B", "w": "W-FRI", "m": "ME"}[state_cfg.market_frequency]
+        bench_returns = (bench_prices.resample(rule).last()
+                         .pct_change(fill_method=None).fillna(0)
+                         .reindex(dates).fillna(0))
 
-    def _build_market_store_config(self) -> MarketStoreConfig:
-        logger.info("Building market store configuration")
-        market_store_config = self.config.get("market_store_config", None)
-        if market_store_config is None:
-            raise ValueError("Error: Market store configuration must be present to run a backtest")
-        return MarketStoreConfig.from_dict(market_store_config)
-
-    def _build_market_store(self, 
-                            market_store_config: MarketStoreConfig) -> MarketDataStore:
-        logger.info("Building market data store")
-        return MarketDataStore(market_store_config)
-
-    def _build_market_state_config(self, strategy_cfg: dict) -> MarketStateConfig:
-        logger.info(f"Building market state configuration for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-        market_state_config = strategy_cfg.get("market_state_config", None)
-        if market_state_config is None:
-            raise ValueError("Error: Market state configuration must be present to run a backtest")
-        return MarketStateConfig.from_dict(market_state_config)
-    
-    def _build_market_state(self, 
-                            market_store: MarketDataStore, 
-                            market_state_config: MarketStateConfig) -> MarketState:
-        logger.info("Building market state")
-        return MarketState(market_store, market_state_config)
-    
-    def _build_rebalance_problem(self, 
-                                 strategy_cfg: dict, 
-                                 market_state: MarketState) -> RebalanceProblem:
-        logger.info(f"Building rebalance problem for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-        builder = RebalanceProblemBuilder(
-            RebalanceProblemConfig.from_dict(strategy_cfg["rebalance_problem"]),
-            market_state
+        result = self._benchmark_result(m_cfg, state_cfg, bench_returns, bench_prices, dates)
+        return StrategyRun(
+            str(uuid.uuid4()), m_cfg.benchmark, None, result, None,
+            {"timestamp": datetime.now(), "username": "bkovalick", "engine_version": "1.0.0"},
         )
-        try:
-            rebalance_problem = builder.build()
-            return rebalance_problem
-        except ValueError as e:
-            logger.error(f"Error building rebalance problem for {strategy_cfg['strategy_type']}: {e}")
+    
+    def _benchmark_result(self, 
+                          market_store_config: MarketStoreConfig,
+                          market_state_config: MarketStateConfig, 
+                          benchmark_returns: pd.Series,
+                          benchmark_prices: pd.Series, 
+                          dates: pd.DatetimeIndex) -> BacktestResult:
+        """Compute benchmark results for comparison."""
+        benchmark_name = market_store_config.benchmark
+        portfolio = Portfolio()
+        portfolio.initialize(dates, np.array([benchmark_name]), np.array([1.0]))
+        portfolio.returns = benchmark_returns
+        portfolio.weights = pd.DataFrame(1.0, index=dates, columns=[benchmark_name])
+        portfolio.turnover = pd.Series(0.0, index=dates)
+        analyzer = PerformanceAnalyzer()
+        return analyzer.compute(
+            portfolio, market_store_config, market_state_config, benchmark_prices
+        )        
 
-    def _build_signal_config(self, strategy_cfg: dict) -> SignalsConfig:
-        logger.info(f"Building signal configuration for strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
-        signals_config = strategy_cfg.get("signals_config", None)
-        if signals_config is None:
-            raise ValueError("Error: Signal configuration must be present to run a backtest")
-        market_frequency = strategy_cfg.get("market_state_config", {}).get("market_frequency", "d")
-        return SignalsConfig.from_dict(signals_config, market_frequency) 
-
-    def _build_metadata(self) -> dict:
-        logger.info("Building metadata for strategy run")
-        return {
-            "timestamp": datetime.now(), 
-            "username": "bkovalick", 
-            "engine_version": "1.0.0"
-        }
+if __name__ == "__main__":
+    pass

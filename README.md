@@ -62,7 +62,7 @@ src/
 ├── reporting/
 │   ├── performance_analyzer.py
 │   ├── report_generation.py
-│   └── signal_monitoring.py
+│   └── diagnostics.py
 ├── services/
 │   ├── optimizer_factory.py
 │   ├── rebalance_problem_builder.py
@@ -171,7 +171,7 @@ portfolio = engine.run_backtest(rebalance_problem)
 ### 5. Signal Monitoring
 
 ```python
-from reporting.signal_monitoring import LongOnlyICDiagnostics
+from reporting.diagnostics import LongOnlyICDiagnostics
 
 # run is a BacktestRun with scores_history, fwd_history, and portfolio populated
 monitor = LongOnlyICDiagnostics(run=backtest_run)

@@ -3,13 +3,14 @@
   "database_name": "research.duckdb",
   "market_store_config": {
     "start_date": "2024-01-01",
-    "end_date": "2026-06-18",
+    "end_date": "2026-07-09",
     "data_source": {
       "yfinance": null
     },
     "benchmark": "SPY",
     "risk_free_rate": 0.03,
     "transaction_cost": 0.005,
+    "apply_market_caps": false,
     "tickers": [
       "^VIX",
       "SPY",
@@ -317,7 +318,6 @@
         "cash_infusion": 0,
         "optimizer_type": "None",
         "rebalance_frequency": "daily",
-        "apply_market_caps": false,
         "strategy_type": "pairs_trading_strategy",
         "signal_source": "pairs_trading",
         "monitoring_type": "pairs"

@@ -1,6 +1,11 @@
+import logging
+
 import yfinance as yf
 import pandas as pd
 from models.market_config import MarketStoreConfig
+
+
+logger = logging.getLogger(__name__)
 
 class MarketDataGateway:
     """ Data gateway for fetching market data using yfinance """
@@ -16,6 +21,11 @@ class MarketDataGateway:
         data_source = market_store_config.data_source
         start_date = market_store_config.start_date
         end_date = market_store_config.end_date
+        logger.info(
+            "Fetching market data for %s tickers from source %s",
+            len(tickers),
+            list(data_source.keys()),
+        )
         
         for source, content in data_source.items():
             if source == "yfinance":
@@ -33,7 +43,7 @@ class MarketDataGateway:
                 ticker_data = yf.Ticker(ticker).info
                 sectors[ticker] = ticker_data.get("sector")
             except Exception as e:
-                print(f"Could not fetch market cap data for {ticker}: {e}")
+                logger.warning("Could not fetch sector data for %s: %s", ticker, e)
                 sectors[ticker] = 0
                 continue
 
@@ -47,7 +57,7 @@ class MarketDataGateway:
                 ticker_data = yf.Ticker(ticker).info
                 market_caps[ticker] = ticker_data.get("marketCap")
             except Exception as e:
-                print(f"Could not fetch market cap data for {ticker}: {e}")
+                logger.warning("Could not fetch market cap data for %s: %s", ticker, e)
                 market_caps[ticker] = 0
                 continue
 
@@ -61,7 +71,7 @@ class MarketDataGateway:
                 ticker_data = yf.Ticker(ticker).info
                 market_caps[ticker] = ticker_data.get("totalAssets", None)
             except Exception as e:
-                print(f"Could not fetch market cap data for {ticker}: {e}")
+                logger.warning("Could not fetch ETF market cap data for %s: %s", ticker, e)
                 market_caps[ticker] = 0
                 continue
 
@@ -69,11 +79,14 @@ class MarketDataGateway:
 
     @staticmethod
     def get_price_data_y_finance(tickers, start_date, end_date):
+        logger.info("Downloading price data from yfinance for %s tickers", len(tickers))
         data = yf.download(tickers, start=start_date, end=end_date)
+        logger.debug("Downloaded yfinance data with shape %s", getattr(data, "shape", None))
         return data.xs('Close', axis=1, level=0)        
 
     @staticmethod
     def get_price_data_csv(csv_file):
+        logger.info("Loading price data from CSV %s", csv_file)
         return pd.read_csv(csv_file)
 
     @staticmethod
@@ -95,6 +108,7 @@ class MarketDataStore:
         """ Initialize with market data gateway and parameters """
         self.transaction_cost = market_store_config.transaction_cost
         self.apply_market_caps = market_store_config.apply_market_caps
+        logger.info("Initializing MarketDataStore for %s to %s", market_store_config.start_date, market_store_config.end_date)
         self._prices = MarketDataGateway.get_price_data(market_store_config)
         self._prices = self._prices.sort_index()
         self._prices = self._prices.dropna(how='all')
@@ -104,6 +118,8 @@ class MarketDataStore:
 
         if len(self._prices) == 0:
             raise ValueError("Market Data Store not created properly, please check inputs.")
+
+        logger.info("Loaded market prices with shape %s", self._prices.shape)
         
         self._prices = self._prices.bfill().ffill()
         if "CASH" not in self._prices.columns:

@@ -1,9 +1,14 @@
+import logging
+
 from models.rebalance_problem import RebalanceProblem
 from models.rebalance_config import RebalanceProblemConfig
 from simulation.market_state import MarketState
 from utils.lookback_windows import LOOKBACK_WINDOWS
 
 import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 class RebalanceProblemBuilder:
     """Orchestrates the pipeline to build a RebalanceProblem from input configuration."""
@@ -13,6 +18,11 @@ class RebalanceProblemBuilder:
                  market_state: MarketState):
         self.rebalance_config = rebalance_config
         self.market_state = market_state
+        logger.debug(
+            "Initialized RebalanceProblemBuilder with optimizer=%s strategy=%s",
+            rebalance_config.optimizer_type,
+            rebalance_config.strategy_type,
+        )
 
     def _resolve_window(self, value):
         """Resolve a duration string (e.g. '1m') or raw int to a period count. Returns None if value is None."""
@@ -40,14 +50,18 @@ class RebalanceProblemBuilder:
                                n_assets: int) -> dict: 
         """ Determines the initial weight vector based on the rebalance configuration."""
         if self.market_state.apply_market_caps:
+            logger.debug("Building initial weights from market caps for %s assets", n_assets)
             return self._build_init_weights_from_mkt_caps()
 
         explicit_weights = self.rebalance_config.initial_weights
         if explicit_weights:
+            logger.debug("Using explicit initial weights for %s assets", n_assets)
             weights = explicit_weights
         elif cash_allocation > 0:
+            logger.debug("Using cash-aware equal weights with cash_allocation=%s", cash_allocation)
             weights = [(1 - cash_allocation) / (n_assets - 1)] * (n_assets - 1) + [cash_allocation]
         else:
+            logger.debug("Using equal weights for %s assets", n_assets)
             weights = [1 / n_assets] * n_assets
 
         if isinstance(weights, list):
@@ -61,6 +75,11 @@ class RebalanceProblemBuilder:
         n_assets = len(self.market_state.investment_universe)
         cash_allocation = self.market_state.cash_allocation
         investment_universe = self.market_state.investment_universe
+        logger.info(
+            "Building rebalance problem for %s assets with cash_allocation=%s",
+            n_assets,
+            cash_allocation,
+        )
         initial_weights = self._setup_initial_weights(cash_allocation, investment_universe, n_assets)
         prepared_data = {
             "n_assets": n_assets,
@@ -96,4 +115,5 @@ class RebalanceProblemBuilder:
             "monitoring_type": self.rebalance_config.monitoring_type
         }
 
+        logger.debug("Prepared rebalance problem with %s keys", len(prepared_data))
         return RebalanceProblem(prepared_data)
