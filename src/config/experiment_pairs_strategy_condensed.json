@@ -2,8 +2,8 @@
   "_description": "Run a basic Pairs Trading Strategy",
   "database_name": "research.duckdb",
   "market_store_config": {
-    "start_date": "2024-01-01",
-    "end_date": "2026-06-18",
+    "start_date": "2025-01-01",
+    "end_date": "2026-08-19",
     "data_source": {
       "yfinance": null
     },

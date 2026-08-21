@@ -79,6 +79,7 @@ def build_signals_factory(strategy_cfg: dict, market_state: MarketState, benchma
 
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig) -> StrategyRun:
     logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
+    print(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
     market_store = MarketDataStore(market_store_config)
     market_state_config = build_market_state_config(strategy_cfg)
     market_state = MarketState(market_store, market_state_config)
@@ -115,6 +116,7 @@ class ExperimentRunner:
         self.config = config
         self.max_workers = min(8, multiprocessing.cpu_count())
         logger.info("ExperimentRunner initialized with %s strategies", len(self.config.get("strategies", [])))
+        print(f"ExperimentRunner initialized with {len(self.config.get('strategies', []))} strategies")
 
     def _get_market_config(self) -> MarketStoreConfig:
         cfg = self.config.get("market_store_config")
@@ -130,8 +132,9 @@ class ExperimentRunner:
         logger.info("Starting sequential experiment run")
         for strategy_cfg in self.config["strategies"]:
             experiment.add_run(run_strategy_worker(strategy_cfg, m_cfg))
-        # self._save_results(experiment)
+        self._save_results(experiment)
         logger.info("Sequential experiment run complete with %s strategy runs", len(experiment.strategy_runs))
+        print("Sequential experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
 
     def run_parallel(self) -> Experiment:
@@ -144,19 +147,22 @@ class ExperimentRunner:
             futures = [executor.submit(run_strategy_worker, s_cfg, m_cfg) for s_cfg in strategies]
             for future in as_completed(futures):
                 experiment.add_run(future.result())
-        # self._save_results(experiment)
+        self._save_results(experiment)
         logger.info("Parallel experiment run complete with %s strategy runs", len(experiment.strategy_runs))
+        print("Parallel experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
 
     def _save_results(self, experiment: Experiment):
         db = self.config.get("results_database", "research.duckdb")
         logger.info("Saving %s strategy runs to %s", len(experiment.strategy_runs), db)
+        print("Saving %s strategy runs to %s" % (len(experiment.strategy_runs), db))
         with ExperimentMetaDataDataGateway(db) as exp_gateway:
             exp_gateway.save_experiment_instance(experiment)
         with StrategyResultsDataGateway(db) as strategy_gateway:
             for run in experiment.strategy_runs:
                 strategy_gateway.save_strategy_run(experiment.experiment_id, run)
         logger.info("Saved experiment %s results to %s", experiment.experiment_id, db)
+        print("Saved experiment %s results to %s" % (experiment.experiment_id, db))
 
 if __name__ == "__main__":
     pass

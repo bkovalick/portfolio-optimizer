@@ -1,10 +1,8 @@
 import logging
-import pandas as pd
 import numpy as np
 import duckdb as db
 import json
 import dataclasses
-from dataclasses import asdict
 
 from models.experiment import Experiment
 from models.strategy_run import StrategyRun
@@ -54,41 +52,34 @@ class StrategyResultsDataGateway(GatewayBase):
 
     CREATE_TABLE_BACKTEST_SUMMARY = """
         CREATE TABLE IF NOT EXISTS backtest_summary (
-            experiment_id    VARCHAR,
-            run_id          VARCHAR PRIMARY KEY,
-            strategy_name   VARCHAR,
-            strategy_config JSON,
-            metadata        JSON
+            experiment_id VARCHAR,
+            run_id        VARCHAR PRIMARY KEY,
+            summary       JSON
         )
     """
 
     CREATE_TABLE_BACKTEST_SERIES = """
         CREATE TABLE IF NOT EXISTS backtest_series (
-            experiment_id    VARCHAR,
-            run_id          VARCHAR PRIMARY KEY,
-            strategy_name   VARCHAR,
-            strategy_config JSON,
-            metadata        JSON
+            experiment_id VARCHAR,
+            run_id        VARCHAR PRIMARY KEY,
+            series        JSON
         )
     """
 
     CREATE_TABLE_IC_SUMMARY = """
         CREATE TABLE IF NOT EXISTS ic_summary (
-            experiment_id    VARCHAR,
-            run_id          VARCHAR PRIMARY KEY,
-            strategy_name   VARCHAR,
-            strategy_config JSON,
-            metadata        JSON
+            experiment_id       VARCHAR,
+            run_id              VARCHAR PRIMARY KEY,
+            ic_summary          JSON,
+            regression_summary  JSON
         )
     """
 
     CREATE_TABLE_IC_SERIES = """
         CREATE TABLE IF NOT EXISTS ic_series (
-            experiment_id    VARCHAR,
-            run_id          VARCHAR PRIMARY KEY,
-            strategy_name   VARCHAR,
-            strategy_config JSON,
-            metadata        JSON
+            experiment_id  VARCHAR,
+            run_id         VARCHAR PRIMARY KEY,
+            ic_statistics  JSON
         )
     """                
 
@@ -100,36 +91,83 @@ class StrategyResultsDataGateway(GatewayBase):
 
     INSERT_B_SUMMARY = """
         INSERT OR REPLACE INTO backtest_summary
-            (experiment_id, run_id, strategy_name, strategy_config, metadata)
-        VALUES (?, ?, ?, ?, ?)
+            (experiment_id, run_id, summary)
+        VALUES (?, ?, ?)
     """    
 
     INSERT_B_SERIES = """
-    INSERT OR REPLACE INTO backtest_series
-        (experiment_id, run_id, strategy_name, strategy_config, metadata)
+        INSERT OR REPLACE INTO backtest_series
+            (experiment_id, run_id, series)
+        VALUES (?, ?, ?)
     """        
 
     INSERT_IC_SUMMARY = """
-    INSERT OR REPLACE INTO ic_summary
-        (experiment_id, run_id, strategy_name, strategy_config, metadata)
+        INSERT OR REPLACE INTO ic_summary
+            (experiment_id, run_id, ic_summary, regression_summary)
+        VALUES (?, ?, ?, ?)
     """
     
     INSERT_IC_SERIES = """
-    INSERT OR REPLACE INTO ic_series
-        (experiment_id, run_id, strategy_name, strategy_config, metadata)
+        INSERT OR REPLACE INTO ic_series
+            (experiment_id, run_id, ic_statistics)
+        VALUES (?, ?, ?)
     """
     
     def __init__(self, database_name: str):
         super().__init__(database_name)
         self._ensure_schema()
 
+    def _ensure_result_table(self, table_name: str, create_statement: str, expected_columns: list[str]):
+        existing_columns = [
+            row[1]
+            for row in self.conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+        ]
+        if existing_columns and existing_columns != expected_columns:
+            legacy_table_name = f"{table_name}_legacy"
+            legacy_exists = self.conn.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_name = ?",
+                [legacy_table_name],
+            ).fetchone()
+            if legacy_exists:
+                raise RuntimeError(
+                    f"Cannot migrate {table_name}: {legacy_table_name} already exists. "
+                    "Review or remove the legacy backup before retrying."
+                )
+
+            logger.warning(
+                "Migrating legacy %s schema with columns %s to %s",
+                table_name,
+                existing_columns,
+                expected_columns,
+            )
+            self.conn.execute(f"CREATE TABLE {legacy_table_name} AS SELECT * FROM {table_name}")
+            self.conn.execute(f"DROP TABLE {table_name}")
+
+        self.conn.execute(create_statement)
+
     def _ensure_schema(self):
         logger.debug("Ensuring strategy results schema")
         self.conn.execute(self.CREATE_TABLE_STRATEGY_RUN)
-        self.conn.execute(self.CREATE_TABLE_BACKTEST_SUMMARY)
-        self.conn.execute(self.CREATE_TABLE_BACKTEST_SERIES)
-        self.conn.execute(self.CREATE_TABLE_IC_SUMMARY)
-        self.conn.execute(self.CREATE_TABLE_IC_SERIES)
+        self._ensure_result_table(
+            "backtest_summary",
+            self.CREATE_TABLE_BACKTEST_SUMMARY,
+            ["experiment_id", "run_id", "summary"],
+        )
+        self._ensure_result_table(
+            "backtest_series",
+            self.CREATE_TABLE_BACKTEST_SERIES,
+            ["experiment_id", "run_id", "series"],
+        )
+        self._ensure_result_table(
+            "ic_summary",
+            self.CREATE_TABLE_IC_SUMMARY,
+            ["experiment_id", "run_id", "ic_summary", "regression_summary"],
+        )
+        self._ensure_result_table(
+            "ic_series",
+            self.CREATE_TABLE_IC_SERIES,
+            ["experiment_id", "run_id", "ic_statistics"],
+        )
 
     def save_strategy_run(self, experiment_id: str, run: StrategyRun):
         run_dict = run.to_dict()
@@ -142,38 +180,66 @@ class StrategyResultsDataGateway(GatewayBase):
             _dumps(run_dict["metadata"]),
         ])
 
-        self._save_backtest_summary(run_dict)
-        self._save_backtest_series(run_dict)
-        self._save_ic_summary(run_dict)
-        self._save_ic_series(run_dict)
+        result = run_dict["result"]
+        monitoring_stats = run_dict.get("monitoring_stats") or {}
+        self._save_backtest_summary(experiment_id, run_dict["run_id"], result["summary"])
+        self._save_backtest_series(experiment_id, run_dict["run_id"], result["series"])
+        self._save_ic_summary(
+            experiment_id,
+            run_dict["run_id"],
+            monitoring_stats.get("ic_summary"),
+            monitoring_stats.get("regression_summary"),
+        )
+        self._save_ic_series(experiment_id, run_dict["run_id"], monitoring_stats.get("ic_statistics"))
         logger.debug("Finished saving strategy run %s", run_dict["run_id"])
 
-    def _save_backtest_summary(self, backtest_summary: dict):
+    def _save_backtest_summary(self, experiment_id: str, run_id: str, summary: dict):
+        if summary is None:
+            logger.debug("No backtest summary to save for run %s in experiment %s", run_id, experiment_id)
+            return
+        
         self.conn.execute(self.INSERT_B_SUMMARY, [
-            json.dumps(backtest_summary["run_id"]),
-            json.dumps(backtest_summary["metric_name"]),
-            json.dumps(backtest_summary["value"]),
+            experiment_id,
+            run_id,
+            _dumps(summary),
         ])
 
-    def _save_backtest_series(self, backtest_series: dict):
+    def _save_backtest_series(self, experiment_id: str, run_id: str, series: dict):
+        if series is None:
+            logger.debug("No backtest series to save for run %s in experiment %s", run_id, experiment_id)
+            return
+        
         self.conn.execute(self.INSERT_B_SERIES, [
-            json.dumps(backtest_series["run_id"]),
-            json.dumps(backtest_series["metric_name"]),
-            json.dumps(backtest_series["value"]),
+            experiment_id,
+            run_id,
+            _dumps(series),
         ])
     
-    def _save_ic_summary(self, ic_summary: dict):
+    def _save_ic_summary(self,
+                         experiment_id: str,
+                         run_id: str,
+                         ic_summary: dict | None,
+                         regression_summary: dict | None):
+        if ic_summary is None and regression_summary is None:
+            logger.debug("No IC summary or regression summary to save for run %s in experiment %s", run_id, experiment_id)
+            return
+        
         self.conn.execute(self.INSERT_IC_SUMMARY, [
-            json.dumps(ic_summary["run_id"]),
-            json.dumps(ic_summary["metric_name"]),
-            json.dumps(ic_summary["value"]),
+            experiment_id,
+            run_id,
+            _dumps(ic_summary) if ic_summary is not None else None,
+            _dumps(regression_summary) if regression_summary is not None else None,
         ])        
 
-    def _save_ic_series(self, ic_series: dict):
+    def _save_ic_series(self, experiment_id: str, run_id: str, ic_statistics: dict | None):
+        if ic_statistics is None:
+            logger.debug("No IC statistics to save for run %s in experiment %s", run_id, experiment_id)
+            return
+        
         self.conn.execute(self.INSERT_IC_SERIES, [
-            json.dumps(ic_series["run_id"]),
-            json.dumps(ic_series["metric_name"]),
-            json.dumps(ic_series["value"]),
+            experiment_id,
+            run_id,
+            _dumps(ic_statistics) if ic_statistics is not None else None,
         ])     
 
 class ExperimentMetaDataDataGateway(GatewayBase):

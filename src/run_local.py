@@ -32,7 +32,7 @@ def local_run(config):
 
 def run_pairs_strategy():
     logger.info("run_pairs_strategy:: Starting local run of pairs trading strategy")
-    with open(f"src/config/experiment_pairs_strategy.json", 'r') as f:
+    with open(f"src/config/experiment_pairs_strategy_condensed.json", 'r') as f:
         config = json.load(f)
     local_run(config)
 
@@ -75,8 +75,8 @@ def run_parameter_sweep():
 
 if __name__ == '__main__':
     # run_full_suite()
-    # run_pairs_strategy()
-    run_ml_momentum_strategy()
+    run_pairs_strategy()
+    # run_ml_momentum_strategy()
     # run_ml_mean_reversion_strategy()
     # run_parameter_sweep()
     # run_standard_mean_variance_strategy()

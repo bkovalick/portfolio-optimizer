@@ -42,6 +42,10 @@ class BacktestingEngine(BacktestingEngineInterface):
             len(rebalance_problem.investment_universe),
             rebalance_problem.rebalance_frequency,
         )
+        print("Starting backtest for %s assets at rebalance frequency %s" % (
+            len(rebalance_problem.investment_universe),
+            rebalance_problem.rebalance_frequency,
+        ))
         start_time = time.time()
         self.rebalance_every = self._get_steps(rebalance_problem.rebalance_frequency)
         tickers = rebalance_problem.investment_universe
@@ -66,6 +70,7 @@ class BacktestingEngine(BacktestingEngineInterface):
             if date.year != current_year:
                 current_year = date.year
                 logger.info("Processing backtest year %s", current_year)
+                print("Processing backtest year %s" % current_year)
 
             current_returns = self.market_state.investment_returns.iloc[cursor]
 
@@ -86,6 +91,7 @@ class BacktestingEngine(BacktestingEngineInterface):
             prev_weights = target_weights
 
         logger.info("Backtest completed in %.2f seconds", time.time() - start_time)
+        print("Backtest completed in %.2f seconds" % (time.time() - start_time))
         return self._build_backtest_run()
 
     def _is_rebalance_step(self, step):
