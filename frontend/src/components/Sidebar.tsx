@@ -804,13 +804,23 @@ export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], on
                       updateField(["rebalance_problem", "initial_weights"], updated)
                     }
 
+                    const clearWeights = () => {
+                      updateField(
+                        ["rebalance_problem", "initial_weights"],
+                        Object.fromEntries(tickers.map((ticker: string) => [ticker, 0]))
+                      )
+                    }
+
                     return (
                       <Section title="Fixed Weights">
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                           <span style={{ fontSize: 10, color: valid ? "#3fb950" : "#f85149" }}>
                             Sum: {(total * 100).toFixed(1)}% {valid ? "✓" : "— must equal 100%"}
                           </span>
-                          <button style={smallBtn} onClick={equalise}>Equalise</button>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button style={smallBtn} onClick={clearWeights}>Clear</button>
+                            <button style={smallBtn} onClick={equalise}>Equalise</button>
+                          </div>
                         </div>
                         {tickers.map(ticker => (
                           <Row key={ticker} label={ticker}>
