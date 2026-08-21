@@ -83,15 +83,12 @@ class ExcelGenerator:
         if "factor_regression" in results and results["factor_regression"] is not None:
             reg_ws = wb.create_sheet(title="Factor Regression")
             reg_df = results["factor_regression"]
-            row_offset = 1
             for _, rec in reg_df.iterrows():
-                reg_ws.cell(row=row_offset, column=1, value=rec["strategy"])
-                row_offset += 1
-                for line in rec["regression_summary"].splitlines():
-                    reg_ws.cell(row=row_offset, column=1, value=line)
-                    row_offset += 1
-                row_offset += 1  # blank separator between strategies
-                ts_ws.cell(row=r_idx, column=c_idx, value=value)                    
+                reg_ws.append([rec["strategy"]])
+                for k, v in rec["regression_summary"].items():
+                    line = f"{k}: {v}"
+                    reg_ws.append([line])
+                reg_ws.append([]) 
 
         wb.save(self.buffer)
         self.buffer.seek(0)
@@ -204,73 +201,6 @@ class ExcelGenerator:
                     rolling_dfs.append(rolling_df)
                 except Exception as e:
                     logger.warning("Could not build rolling series for %s: %s", strategy_name, e)
-
-        # Add benchmark summary row
-        benchmark_name = self.config.get("benchmark", "Benchmark")
-        risk_free = self.config.get("risk_free_rate", 0.03)
-        ann_factor = self.config.get("annual_trading_days", 252)
-        for strategy_run in self.experiment.strategy_runs:
-            series = strategy_run.result.series
-            if "benchmark_wealth_factors" in series:
-                try:
-                    bwf = deserialize_series(series["benchmark_wealth_factors"])
-                    br = deserialize_series(series["benchmark_returns"])
-                    n_years = len(br) / ann_factor
-                    bm_ann_return = float(bwf.iloc[-1] ** (1 / n_years) - 1) if n_years > 0 and len(bwf) > 1 else 0.0
-                    bm_vol = float(br.std() * np.sqrt(ann_factor)) if len(br) > 1 else 0.0
-                    bm_sharpe = float((bm_ann_return - risk_free) / bm_vol) if bm_vol > 0 else 0.0
-                    downside = br[br < 0]
-                    bm_sortino_denom = float(downside.std() * np.sqrt(ann_factor)) if len(downside) > 1 else 0.0
-                    bm_sortino = float((bm_ann_return - risk_free) / bm_sortino_denom) if bm_sortino_denom > 0 else 0.0
-                    drawdown = (bwf / bwf.cummax()) - 1
-                    bm_max_dd = float(drawdown.min()) if len(drawdown) > 0 else 0.0
-                    bm_avg_dd = float(drawdown[drawdown < 0].mean()) if (drawdown < 0).any() else 0.0
-                    bm_calmar = float(bm_ann_return / abs(bm_max_dd)) if bm_max_dd != 0 else 0.0
-                    in_dd = drawdown < 0
-                    max_dur, cur_dur = 0, 0
-                    for v in in_dd:
-                        if v:
-                            cur_dur += 1
-                            max_dur = max(max_dur, cur_dur)
-                        else:
-                            cur_dur = 0
-                    bm_var_95 = float(br.quantile(0.05))
-                    bm_var_975 = float(br.quantile(0.025))
-                    bm_var_99 = float(br.quantile(0.01))
-                    bm_cvar_95 = float(br[br < br.quantile(0.05)].mean()) if (br < br.quantile(0.05)).any() else 0.0
-                    bm_cvar_975 = float(br[br < br.quantile(0.025)].mean()) if (br < br.quantile(0.025)).any() else 0.0
-                    bm_cvar_99 = float(br[br < br.quantile(0.01)].mean()) if (br < br.quantile(0.01)).any() else 0.0
-                    summary_rows.append({
-                        "strategy": benchmark_name,
-                        "return": bm_ann_return,
-                        "volatility": bm_vol,
-                        "sharpe_ratio": bm_sharpe,
-                        "sortino_ratio": bm_sortino,
-                        "max_drawdown": bm_max_dd,
-                        "avg_drawdown": bm_avg_dd,
-                        "max_drawdown_duration": max_dur,
-                        "calmar_ratio": bm_calmar,
-                        "win_rate": float((br > 0).mean()),
-                        "loss_rate": float((br < 0).mean()),
-                        "average_win": float(br[br > 0].mean()) if (br > 0).any() else 0.0,
-                        "average_loss": float(br[br < 0].mean()) if (br < 0).any() else 0.0,
-                        "skewness": float(br.skew()),
-                        "kurtosis": float(br.kurt()),
-                        "var_95": bm_var_95,
-                        "var_97.5": bm_var_975,
-                        "var_99": bm_var_99,
-                        "cvar_95": bm_cvar_95,
-                        "cvar_97.5": bm_cvar_975,
-                        "cvar_99": bm_cvar_99,
-                        "alpha": 0.0,
-                        "alpha_decay": 0.0,
-                        "tracking_error": 0.0,
-                        "information_ratio": 0.0,
-                        "turnover": None,
-                    })
-                except Exception as e:
-                    logger.warning("Could not build benchmark summary row: %s", e)
-                break
 
         summary_df = pd.DataFrame(summary_rows)
         portfolio_metrics_df = pd.concat(portfolio_dfs, axis=0, ignore_index=True) if portfolio_dfs else None

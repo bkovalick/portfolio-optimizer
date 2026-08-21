@@ -10,11 +10,11 @@ from pandas_datareader import data as web
 from models.monitoring_stats import MonitoringStats
 from models.backtest_run import BacktestRun
 
-class BaseMonitor(abc.ABC):
+class BaseDiagnostic(abc.ABC):
     @abc.abstractmethod
     def analyze(self) -> MonitoringStats: ...
 
-class PairsSpreadDiagnostics(BaseMonitor):
+class PairsSpreadDiagnostics(BaseDiagnostic):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
                  run: BacktestRun):
@@ -44,7 +44,7 @@ class PairsSpreadDiagnostics(BaseMonitor):
         ic_sp, pval = spearmanr(-clean["Zscore"], clean["FwdReturn"])
         return pd.Series([ic_sp], dtype=float)
     
-class LongOnlyICDiagnostics(BaseMonitor):
+class LongOnlyICDiagnostics(BaseDiagnostic):
     """Monitors signal decay by computing rolling Information Coefficient and half-life of those signals."""
     def __init__(self, 
                  run: BacktestRun):
@@ -123,7 +123,7 @@ class LongOnlyICDiagnostics(BaseMonitor):
         half_life = np.log(0.5) / np.log(phi)
         return half_life
 
-class FactorRegressionDiagnostics(BaseMonitor):
+class FactorRegressionDiagnostics(BaseDiagnostic):
     """
     Performs OLS regression of portfolio excess returns against Fama-French five factors plus momentum (FF5 + MOM).
     """

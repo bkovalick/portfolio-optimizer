@@ -43,7 +43,7 @@ export default function LabDrawer({ open, onClose, experiment, setExperiment }: 
           <button style={closeBtn} onClick={onClose} aria-label="Close lab">✕</button>
         </div>
         <div style={drawerBody}>
-          <Sidebar experiment={experiment} setExperiment={setExperiment} />
+          <Sidebar setExperiment={setExperiment} />
         </div>
       </aside>
     </>
@@ -52,8 +52,7 @@ export default function LabDrawer({ open, onClose, experiment, setExperiment }: 
 
 const backdrop: CSSProperties = {
   position: "fixed",
-  top: 0, right: 0, bottom: 0,
-  left: 56,                        // was inset: 0 — stop at the rail
+  inset: 0,
   background: "rgba(1, 4, 9, 0.6)",
   zIndex: 40,
 }

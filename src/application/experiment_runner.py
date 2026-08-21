@@ -1,3 +1,4 @@
+import numpy as np
 import uuid, logging, multiprocessing, pandas as pd
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -5,7 +6,7 @@ from typing import Optional
 
 from domain.portfolio.portfolio import Portfolio
 from reporting.performance_analyzer import PerformanceAnalyzer
-from reporting.signal_monitoring import FactorRegressionDiagnostics, LongOnlyICDiagnostics, PairsSpreadDiagnostics
+from reporting.diagnostics import FactorRegressionDiagnostics, LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
 from simulation.market_state import MarketState
 from services.strategy_factory import StrategyFactory
@@ -17,6 +18,7 @@ from models.market_config import MarketStoreConfig, MarketStateConfig
 from models.rebalance_config import RebalanceProblemConfig
 from models.signals_config import SignalsConfig
 from models.experiment import Experiment
+from models.backtest_result import BacktestResult
 from infrastructure.market_data_gateway import MarketDataStore
 from infrastructure.strategy_results_data_gateway import ExperimentMetaDataDataGateway, StrategyResultsDataGateway
 from models.monitoring_stats import MonitoringStats
@@ -132,7 +134,8 @@ class ExperimentRunner:
         logger.info("Starting sequential experiment run")
         for strategy_cfg in self.config["strategies"]:
             experiment.add_run(run_strategy_worker(strategy_cfg, m_cfg))
-        self._save_results(experiment)
+        experiment.add_run(self._build_benchmark_run(m_cfg, experiment))
+        # self._save_results(experiment)
         logger.info("Sequential experiment run complete with %s strategy runs", len(experiment.strategy_runs))
         print("Sequential experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
@@ -147,7 +150,8 @@ class ExperimentRunner:
             futures = [executor.submit(run_strategy_worker, s_cfg, m_cfg) for s_cfg in strategies]
             for future in as_completed(futures):
                 experiment.add_run(future.result())
-        self._save_results(experiment)
+        experiment.add_run(self._build_benchmark_run(m_cfg, experiment))
+        # self._save_results(experiment)
         logger.info("Parallel experiment run complete with %s strategy runs", len(experiment.strategy_runs))
         print("Parallel experiment run complete with %s strategy runs" % len(experiment.strategy_runs))
         return experiment
@@ -163,6 +167,42 @@ class ExperimentRunner:
                 strategy_gateway.save_strategy_run(experiment.experiment_id, run)
         logger.info("Saved experiment %s results to %s", experiment.experiment_id, db)
         print("Saved experiment %s results to %s" % (experiment.experiment_id, db))
+
+    def _build_benchmark_run(self, m_cfg: MarketStoreConfig, experiment: Experiment) -> StrategyRun:
+        first = experiment.strategy_runs[0]
+        state_cfg = build_market_state_config(self.config["strategies"][0])
+        dates = first.result.series["portfolio_returns"].index
+
+        store = MarketDataStore(m_cfg)
+        bench_prices = store.prices[m_cfg.benchmark]
+        rule = {"d": "B", "w": "W-FRI", "m": "ME"}[state_cfg.market_frequency]
+        bench_returns = (bench_prices.resample(rule).last()
+                         .pct_change(fill_method=None).fillna(0)
+                         .reindex(dates).fillna(0))
+
+        result = self._benchmark_result(m_cfg, state_cfg, bench_returns, bench_prices, dates)
+        return StrategyRun(
+            str(uuid.uuid4()), m_cfg.benchmark, None, result, None,
+            {"timestamp": datetime.now(), "username": "bkovalick", "engine_version": "1.0.0"},
+        )
+    
+    def _benchmark_result(self, 
+                          market_store_config: MarketStoreConfig,
+                          market_state_config: MarketStateConfig, 
+                          benchmark_returns: pd.Series,
+                          benchmark_prices: pd.Series, 
+                          dates: pd.DatetimeIndex) -> BacktestResult:
+        """Compute benchmark results for comparison."""
+        benchmark_name = market_store_config.benchmark
+        portfolio = Portfolio()
+        portfolio.initialize(dates, np.array([benchmark_name]), np.array([1.0]))
+        portfolio.returns = benchmark_returns
+        portfolio.weights = pd.DataFrame(1.0, index=dates, columns=[benchmark_name])
+        portfolio.turnover = pd.Series(0.0, index=dates)
+        analyzer = PerformanceAnalyzer()
+        return analyzer.compute(
+            portfolio, market_store_config, market_state_config, benchmark_prices
+        )        
 
 if __name__ == "__main__":
     pass

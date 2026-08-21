@@ -8,6 +8,7 @@ import StrategyGrid from "./components/StrategyGrid"
 import StrategyDetails from "./components/StrategyDetails"
 import AnalysisPanel from "./components/AnalysisPanel"
 import StatisticalEvidence from "./components/StatisticalEvidence"
+import DownloadReport from "./components/Downloadreport"
 import AttributionPage from "./components/AttributionPage"
 import type { DateWindow } from "./utils/metricsUtils"
 
@@ -32,7 +33,7 @@ export default function App() {
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set())
   const [dateWindow, setDateWindow] = useState<DateWindow | null>(null)
 
-  const runs: any[] = experiment?.strategy_runs  ?? []     // RUNS-SOURCE
+  const runs: any[] = experiment?.runs ?? []     // RUNS-SOURCE
 
   // When a suite finishes (runs appear or change), close the Lab and show Results.
   const prevRunCount = useRef(0)
@@ -78,6 +79,10 @@ export default function App() {
               <EmptyResults onOpenLab={() => setLabOpen(true)} />
             ) : (
               <div style={resultsPage}>
+                <div style={resultsHeader}>
+                  <h1 style={resultsTitle}>Results</h1>
+                  <DownloadReport experiment={experiment} />
+                </div>
                 <StrategyGrid
                   runs={runs}
                   onSelect={setSelectedRun}
@@ -163,8 +168,14 @@ const shell: CSSProperties = {
   fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
 }
 const main: CSSProperties = { flex: 1, minWidth: 0 }
-// const resultsPage: CSSProperties = { padding: "16px 20px", maxWidth: 1280, margin: "0 auto" }
 const resultsPage: CSSProperties = { padding: "16px 20px" }
+const resultsHeader: CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  marginBottom: 12, gap: 16,
+}
+const resultsTitle: CSSProperties = {
+  fontSize: 16, fontWeight: 600, color: "#e6edf3", margin: 0, letterSpacing: "0.2px",
+}
 
 const emptyResults: CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
