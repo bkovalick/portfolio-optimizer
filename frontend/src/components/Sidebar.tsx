@@ -4,7 +4,7 @@ import type { CSSProperties } from "react"
 
 type Tab = "experiment" | "lab"
 
-export default function Sidebar({ setExperiment }: any) {
+export default function Sidebar({ setExperiment, experiment, pinnedRuns = [], onClearPinned }: any) {
   const [tab, setTab] = useState<Tab>("experiment")
   const [loading, setLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -22,6 +22,8 @@ export default function Sidebar({ setExperiment }: any) {
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonText, setJsonText] = useState("")
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [newUniverseTicker, setNewUniverseTicker] = useState("")
+  const [newUniverseTickerError, setNewUniverseTickerError] = useState<string | null>(null)
 
   function getPreviousBusinessDay(date: Date = new Date()): Date {
     const dayOfWeek = date.getDay();
@@ -51,6 +53,7 @@ export default function Sidebar({ setExperiment }: any) {
       if (json.market_store_config?.risk_free_rate) setRiskFreeRate(json.market_store_config.risk_free_rate)
     }
   }
+
 
   const runExperiment = async () => {
     if (!strategySet) return
@@ -111,6 +114,87 @@ export default function Sidebar({ setExperiment }: any) {
     setEditedStrategies(updated)
   }
 
+  const updateUniverseTickers = (nextTickers: string[]) => {
+    const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
+    if (!updatedStrategies[selectedIdx].market_state_config) {
+      updatedStrategies[selectedIdx].market_state_config = {}
+    }
+    updatedStrategies[selectedIdx].market_state_config.investment_universe = nextTickers
+
+    if (currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy") {
+      const rawWeights = currentStrategy.rebalance_problem?.initial_weights
+      const currentWeights: Record<string, number> = Array.isArray(rawWeights)
+        ? Object.fromEntries((currentStrategy.market_state_config?.investment_universe ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
+        : (rawWeights ?? {})
+
+      updatedStrategies[selectedIdx].rebalance_problem.initial_weights = Object.fromEntries(
+        nextTickers.map((t: string) => [t, currentWeights[t] ?? 0])
+      )
+    }
+
+    setEditedStrategies(updatedStrategies)
+    setNewUniverseTickerError(null)
+  }
+
+  const availableUniverseTickers = ((strategySet?.market_store_config?.tickers ?? []) as string[]).filter(
+    (ticker: string) => ticker !== strategySet?.market_store_config?.benchmark
+  )
+
+  const addUniverseTicker = (rawTicker: string) => {
+    const ticker = rawTicker.trim().toUpperCase()
+    if (!ticker) return
+
+    if (!availableUniverseTickers.includes(ticker)) {
+      setNewUniverseTickerError(`Unknown ticker: ${ticker}`)
+      return
+    }
+
+    const current = currentStrategy.market_state_config?.investment_universe ?? []
+    if (current.includes(ticker)) {
+      setNewUniverseTicker("")
+      setNewUniverseTickerError(null)
+      return
+    }
+
+    updateUniverseTickers([...current, ticker])
+    setNewUniverseTicker("")
+    setNewUniverseTickerError(null)
+  }
+
+  // BL is an overlay, not a signal. It's preserved when switching between any
+  // view-producing signal, and stripped only when switching to pairs (which is
+  // market-neutral and has no prior-vs-views framework).
+  const SIGNAL_CONFIG_KEYS: Record<string, string[]> = {
+    mean_reversion:      ["mean_reversion_window", "black_litterman"],
+    momentum:            ["momentum_skip_periods", "black_litterman"],
+    pairs_trading:       ["pairs_trading"],
+    ml_cross_sectional:  ["ml_signals_config", "black_litterman"],
+    risk_return:         ["black_litterman"],
+    moving_average:      ["black_litterman"],
+    volatility_forecast: ["black_litterman"],
+  }
+
+  const changeSignalSource = (newSource: string) => {
+    const updated = JSON.parse(JSON.stringify(editedStrategies))
+    const strat = updated[selectedIdx]
+    if (!strat.rebalance_problem) strat.rebalance_problem = {}
+    strat.rebalance_problem.signal_source = newSource
+
+    const sc = strat.signals_config ?? {}
+    const keep = new Set(SIGNAL_CONFIG_KEYS[newSource] ?? [])
+    const allSignalKeys = new Set(Object.values(SIGNAL_CONFIG_KEYS).flat())
+
+    // Strip any signal-specific block that doesn't belong to the new source.
+    // Generic keys (apply_winsorizing, windsor_percentiles) are never in
+    // allSignalKeys, so they persist across switches.
+    for (const key of Object.keys(sc)) {
+      if (allSignalKeys.has(key) && !keep.has(key)) delete sc[key]
+    }
+
+    strat.signals_config = sc
+    setEditedStrategies(updated)
+  }
+
   const openJsonEditor = () => {
     setJsonText(JSON.stringify(currentStrategy, null, 2))
     setJsonError(null)
@@ -130,6 +214,25 @@ export default function Sidebar({ setExperiment }: any) {
     }
   }
 
+  const quickStats = (() => {
+    if (!experiment?.strategy_runs?.length) return null
+    const runs = experiment.strategy_runs
+    const best = (key: string, higher = true) => {
+      const sorted = [...runs].sort((a, b) => {
+        const va = a.result.summary[key] ?? (higher ? -Infinity : Infinity)
+        const vb = b.result.summary[key] ?? (higher ? -Infinity : Infinity)
+        return higher ? vb - va : va - vb
+      })
+      return { name: formatName(sorted[0].strategy_name), value: sorted[0].result.summary[key] }
+    }
+    return {
+      sharpe:   best("sharpe_ratio"),
+      ret:      best("return"),
+      drawdown: best("max_drawdown", false),
+      vol:      best("volatility", false)
+    }
+  })()
+
   const rebalanceOptions = ["daily", "weekly", "monthly", "quarterly"]
   const strategyTypes = ["systematic_strategy","fwp_strategy","ewp_strategy", "pairs_trading_strategy"]
   const signalSourceOptions = [
@@ -138,7 +241,6 @@ export default function Sidebar({ setExperiment }: any) {
     ["moving_average", "Moving Average"],
     ["volatility_forecast", "Volatility Forecast"],
     ["momentum", "Momentum"],
-    ["black_litterman", "Black-Litterman"],
     ["ml_cross_sectional", "Machine Learning"],
     ["pairs_trading", "Pairs Trading"],
   ] as const
@@ -148,7 +250,6 @@ export default function Sidebar({ setExperiment }: any) {
     if (explicit) return explicit
     if (currentStrategy?.signals_config?.ml_signals_config) return "ml_cross_sectional"
     if (currentStrategy?.signals_config?.pairs_trading) return "pairs_trading"
-    if (currentStrategy?.signals_config?.black_litterman) return "black_litterman"
     if (currentStrategy?.signals_config?.mean_reversion_window !== undefined) return "mean_reversion"
     if (currentStrategy?.signals_config?.momentum_skip_periods !== undefined) return "momentum"
     return "risk_return"
@@ -156,8 +257,12 @@ export default function Sidebar({ setExperiment }: any) {
 
   const hasMlSignals = !!currentStrategy?.signals_config?.ml_signals_config
   const hasBlackLitterman = !!currentStrategy?.signals_config?.black_litterman
+  const hasPairsTrading = !!currentStrategy?.signals_config?.pairs_trading
   const hasMeanReversionSignals = currentStrategy?.signals_config?.mean_reversion_window !== undefined
   const hasMomentumSignals = currentStrategy?.signals_config?.momentum_skip_periods !== undefined
+  // BL is an overlay available on any view-producing signal — i.e. everything
+  // except pairs trading, which is market-neutral with no prior-vs-views model.
+  const blApplies = !!inferredSignalSource && inferredSignalSource !== "pairs_trading"
 
   return (
     <div style={container}>
@@ -181,7 +286,6 @@ export default function Sidebar({ setExperiment }: any) {
               </div>
             : null}
         </Section>
-
 
           <Section title="Market Configuration">
             <Row label="Start">
@@ -212,6 +316,18 @@ export default function Sidebar({ setExperiment }: any) {
           </button>
           {runError && <div style={{ marginTop: 6, padding: "6px 10px", background: "#2d1215", border: "1px solid #f85149", borderRadius: 6, color: "#f85149", fontSize: 11 }}>{runError}</div>}
 
+          {quickStats && (
+            <>
+              <hr style={divider} />
+              <div style={quickStatsTitle}>Last Run · Best</div>
+              <div style={statsGrid}>
+                <StatCard label="Sharpe"   value={quickStats.sharpe.value?.toFixed(2)}   name={quickStats.sharpe.name} />
+                <StatCard label="Return"   value={(quickStats.ret.value != null ? (quickStats.ret.value * 100).toFixed(1) + "%" : "-")} name={quickStats.ret.name} positive />
+                <StatCard label="Min DD"   value={(quickStats.drawdown.value != null ? (quickStats.drawdown.value * 100).toFixed(1) + "%" : "-")} name={quickStats.drawdown.name} negative />
+                <StatCard label="Low Vol"  value={(quickStats.vol.value != null ? (quickStats.vol.value * 100).toFixed(1) + "%" : "-")} name={quickStats.vol.name} />
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -224,13 +340,15 @@ export default function Sidebar({ setExperiment }: any) {
             <div style={strategyNav}>
               {editedStrategies.map((s: any, i: number) => {
                 const isNew = !strategySet.strategies.find((orig: any) => orig.name === s.name)
+                const isFromPin = !!s._fromPin
                 return (
                   <div key={i} style={{ display: "flex", gap: 4 }}>
                     <button
                       style={{ ...(i === selectedIdx ? activeStrategyBtn : strategyBtn), flex: 1 }}
                       onClick={() => { setSelectedIdx(i); setJsonMode(false) }}>
                       {s.name}
-                      {isNew && <span style={newBadge}>new</span>}
+                      {isFromPin && <span style={pinnedBadge}>pinned</span>}
+                      {isNew && !isFromPin && <span style={newBadge}>new</span>}
                     </button>
                     <button
                       style={{ ...removeStrategyBtn, opacity: editedStrategies.length <= 1 ? 0.5 : 1, cursor: editedStrategies.length <= 1 ? "not-allowed" : "pointer" }}
@@ -247,6 +365,25 @@ export default function Sidebar({ setExperiment }: any) {
                     </div>
                 )
               })}
+              {pinnedRuns
+                .filter((r: any) => !editedStrategies.some((s: any) => s.name === r.strategy_name))
+                .map((r: any) => (
+                  <div key={r.run_id} style={{ display: "flex", gap: 4 }}>
+                    <button
+                      style={{ ...strategyBtn, flex: 1 }}
+                      onClick={() => {
+                        const config = { ...r.strategy_config, name: r.strategy_name, _fromPin: true }
+                        const updated = [...editedStrategies, config]
+                        setEditedStrategies(updated)
+                        setSelectedIdx(updated.length - 1)
+                        setJsonMode(false)
+                      }}>
+                      {r.strategy_name}
+                      <span style={pinnedBadge}>pinned</span>
+                    </button>
+                  </div>
+                ))
+              }
               <button style={addStrategyBtn} onClick={() => {
                 const template = JSON.parse(JSON.stringify(editedStrategies[0]))
                 template.name = `custom_strategy_${editedStrategies.length + 1}`
@@ -272,101 +409,81 @@ export default function Sidebar({ setExperiment }: any) {
               ) : currentStrategy ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <Section title="Identity">
-                    <Row label="Name">
-                      <input style={inputStyle} value={currentStrategy?.name}
+                    <Row label="Name" tooltip="A unique identifier for this strategy">
+                      <input style={inputStyle} value={currentStrategy.name}
                         onChange={(e) => updateField(["name"], e.target.value)} />
                     </Row>
                   </Section>
 
                   <Section title="Market State">
-                    <Row label="Lookback">
-                      <input style={inputStyle} value={currentStrategy?.market_state_config?.lookback_window_key ?? ""}
+                    <Row label="Lookback" tooltip="Lookback window key for market state calculations (e.g. '252d' = 1 year of daily data)">
+                      <input style={inputStyle} value={currentStrategy.market_state_config?.lookback_window_key ?? ""}
                         onChange={(e) => updateField(["market_state_config", "lookback_window_key"], e.target.value)} />
                     </Row>
-                    <Row label="Cash Alloc">
+                    <Row label="Cash Alloc" tooltip="Fraction of the portfolio kept in cash; reduces capital allocated to securities (0 = fully invested, 0.05 = 5% cash)">
                       <input type="number" step={0.01} style={inputStyle}
-                        value={currentStrategy?.market_state_config?.cash_allocation ?? 0}
+                        value={currentStrategy.market_state_config?.cash_allocation ?? 0}
                         onChange={(e) => updateField(["market_state_config", "cash_allocation"], Number(e.target.value))} />
                     </Row>
                     <label style={labelStyle}>Universe Tickers</label>
                       <div style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
                         <button style={smallBtn} onClick={() => {
-                          const allTickers = (strategySet.market_store_config.tickers ?? []).filter(
-                            (t: string) => t !== strategySet.market_store_config.benchmark
-                          )
-                          if (currentStrategy?.rebalance_problem?.strategy_type === "fwp_strategy") {
-                            const rawWeights = currentStrategy?.rebalance_problem?.initial_weights
-                            const currentWeights: Record<string, number> = Array.isArray(rawWeights)
-                              ? Object.fromEntries((currentStrategy?.market_state_config?.investment_universe ?? []).map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
-                              : (rawWeights ?? {})
-                            const newWeights = Object.fromEntries(allTickers.map((t: string) => [t, currentWeights[t] ?? 0]))
-                            const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.investment_universe = allTickers
-                            updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
-                            setEditedStrategies(updatedStrategies)
-                            return
-                          }
-                          updateField(["market_state_config", "investment_universe"], allTickers)
+                          updateUniverseTickers(availableUniverseTickers)
                         }}>All</button>
 
                         <button style={smallBtn} onClick={() => {
-                          if (currentStrategy?.rebalance_problem?.strategy_type === "fwp_strategy") {
-                            const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                            updatedStrategies[selectedIdx].market_state_config.investment_universe = []
-                            updatedStrategies[selectedIdx].rebalance_problem.initial_weights = {}
-                            setEditedStrategies(updatedStrategies)
-                            return
-                          }
-                          updateField(["market_state_config", "investment_universe"], [])
+                          updateUniverseTickers([])
                         }}>Clear</button>
+                        <input
+                          style={{ ...inputStyle, maxWidth: 140 }}
+                          placeholder="Add ticker"
+                          value={newUniverseTicker}
+                          onChange={(e) => {
+                            setNewUniverseTicker(e.target.value.toUpperCase())
+                            if (newUniverseTickerError) setNewUniverseTickerError(null)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return
+                            e.preventDefault()
+                            addUniverseTicker(newUniverseTicker)
+                          }}
+                        />
+                        <button style={smallBtn} onClick={() => {
+                          addUniverseTicker(newUniverseTicker)
+                        }}>Add</button>
                         <span style={{ fontSize: 10, color: "#8b949e" }}>
-                          {(currentStrategy?.market_state_config?.investment_universe ?? []).length} selected
+                          {(currentStrategy.market_state_config?.investment_universe ?? []).length} selected
                         </span>
                       </div>
+                      {newUniverseTickerError && (
+                        <div style={{ fontSize: 10, color: "#f85149", marginBottom: 4 }}>
+                          {newUniverseTickerError}
+                        </div>
+                      )}
                       <div style={tickerGrid}>
-                        {(strategySet.market_store_config.tickers ?? [])
-                          .filter((t: string) => t !== strategySet.market_store_config.benchmark)
-                          .map((ticker: string) => {
-                            const selected = (currentStrategy?.market_state_config?.investment_universe ?? []).includes(ticker)
-                            return (
-                              <button
-                                key={ticker}
-                                style={selected ? tickerChipActive : tickerChip}
-                                onClick={() => {
-                                  const current = currentStrategy?.market_state_config?.investment_universe ?? []
-                                  const updated = selected
-                                    ? current.filter((t: string) => t !== ticker)
-                                    : [...current, ticker]
-                                  
-                                  // If fwp strategy, sync initial_weights dict with new ticker list
-                                  if (currentStrategy?.rebalance_problem?.strategy_type === "fwp_strategy") {
-                                    const rawWeights = currentStrategy?.rebalance_problem?.initial_weights
-                                    const currentWeights: Record<string, number> = Array.isArray(rawWeights)
-                                      ? Object.fromEntries(current.map((t: string, i: number) => [t, rawWeights[i] ?? 0]))
-                                      : (rawWeights ?? {})
-                                    
-                                    const newWeights = Object.fromEntries(
-                                      updated.map((t: string) => [t, currentWeights[t] ?? 0])
-                                    )
-                                    
-                                    const updatedStrategies = JSON.parse(JSON.stringify(editedStrategies))
-                                    updatedStrategies[selectedIdx].market_state_config.investment_universe = updated
-                                    updatedStrategies[selectedIdx].rebalance_problem.initial_weights = newWeights
-                                    setEditedStrategies(updatedStrategies)
-                                    return
-                                  }
+                        {availableUniverseTickers.map((ticker: string) => {
+                          const selected = (currentStrategy.market_state_config?.investment_universe ?? []).includes(ticker)
+                          return (
+                            <button
+                              key={ticker}
+                              style={selected ? tickerChipActive : tickerChip}
+                              onClick={() => {
+                                const current = currentStrategy.market_state_config?.investment_universe ?? []
+                                const updated = selected
+                                  ? current.filter((t: string) => t !== ticker)
+                                  : [...current, ticker]
 
-                                  updateField(["market_state_config", "investment_universe"], updated)
-                                }}
-                              >{ticker}</button>
-                            )
-                          })}
+                                updateUniverseTickers(updated)
+                              }}
+                            >{ticker}</button>
+                          )
+                        })}
                       </div>
-                    <Row label="Exogenous">
+                    <Row label="Exogenous" tooltip="Optional external signal tickers included as market regime features (e.g. ^VIX for volatility, ^TNX for interest rates)">
                       <input
                         style={inputStyle}
                         placeholder="e.g. ^VIX, ^TNX"
-                        value={(currentStrategy?.market_state_config?.exogenous_tickers ?? []).join(", ")}
+                        value={(currentStrategy.market_state_config?.exogenous_tickers ?? []).join(", ")}
                         onChange={(e) => {
                           const tickers = e.target.value
                             .split(",")
@@ -379,9 +496,9 @@ export default function Sidebar({ setExperiment }: any) {
                   </Section>
                   
                   <Section title="Strategy Type">
-                    <Row label="Strategy">
+                    <Row label="Strategy" tooltip="Portfolio construction method: systematic (signal-driven), fwp (fixed weights), ewp (equal weight), pairs (statistical arbitrage)">
                       <select style={inputStyle}
-                        value={currentStrategy?.rebalance_problem?.strategy_type ?? ""}
+                        value={currentStrategy.rebalance_problem?.strategy_type ?? ""}
                         onChange={(e) => updateField(["rebalance_problem", "strategy_type"], e.target.value)}>
                         {strategyTypes.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
@@ -389,23 +506,22 @@ export default function Sidebar({ setExperiment }: any) {
                   </Section>
 
                   <Section title="Rebalance">
-                    <Row label="Frequency">
+                    <Row label="Frequency" tooltip="How often the portfolio is rebalanced and positions updated">
                       <select style={inputStyle}
-                        value={currentStrategy?.rebalance_problem?.rebalance_frequency ?? "weekly"}
+                        value={currentStrategy.rebalance_problem?.rebalance_frequency ?? "weekly"}
                         onChange={(e) => updateField(["rebalance_problem", "rebalance_frequency"], e.target.value)}>
                         {rebalanceOptions.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </Row>
                   </Section>
-
                   <Section title="Signals">
                     {currentStrategy ? (
                     <>
-                    <Row label="Signal">
+                    <Row label="Signal" tooltip="Alpha signal source driving stock selection and portfolio weighting">
                       <select
                         style={inputStyle}
                         value={inferredSignalSource}
-                        onChange={(e) => updateField(["rebalance_problem", "signal_source"], e.target.value)}
+                        onChange={(e) => changeSignalSource(e.target.value)}
                       >
                         {signalSourceOptions.map(([value, label]) => (
                           <option key={value} value={value}>{label}</option>
@@ -413,10 +529,10 @@ export default function Sidebar({ setExperiment }: any) {
                       </select>
                     </Row>
 
-                    <Row label="Winsorize">
+                    <Row label="Winsorize" tooltip="Clip extreme signal values to reduce the influence of outliers before ranking">
                       <select
                         style={inputStyle}
-                        value={currentStrategy?.signals_config?.apply_winsorizing ? "true" : "false"}
+                        value={currentStrategy.signals_config?.apply_winsorizing ? "true" : "false"}
                         onChange={(e) => updateField(["signals_config", "apply_winsorizing"], e.target.value === "true")}
                       >
                         <option value="false">Off</option>
@@ -424,19 +540,19 @@ export default function Sidebar({ setExperiment }: any) {
                       </select>
                     </Row>
 
-                    {currentStrategy?.signals_config?.apply_winsorizing && (
+                    {currentStrategy.signals_config?.apply_winsorizing && (
                       <>
-                        <Row label="Lower %">
+                        <Row label="Lower %" tooltip="Signals below this percentile are clipped to this floor (e.g. 0.05 = bottom 5%)">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy?.signals_config?.windsor_percentiles?.lower ?? 0.05}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.lower ?? 0.05}
                             onChange={(e) => updateField(["signals_config", "windsor_percentiles", "lower"], Number(e.target.value))}
                           />
                         </Row>
-                        <Row label="Upper %">
+                        <Row label="Upper %" tooltip="Signals above this percentile are clipped to this ceiling (e.g. 0.95 = top 95%)">
                           <input
                             type="number" step={0.01} min={0} max={1} style={inputStyle}
-                            value={currentStrategy?.signals_config?.windsor_percentiles?.upper ?? 0.95}
+                            value={currentStrategy.signals_config?.windsor_percentiles?.upper ?? 0.95}
                             onChange={(e) => updateField(["signals_config", "windsor_percentiles", "upper"], Number(e.target.value))}
                           />
                         </Row>
@@ -444,27 +560,63 @@ export default function Sidebar({ setExperiment }: any) {
                     )}
 
                     {(inferredSignalSource === "mean_reversion" || hasMeanReversionSignals) && (
-                      <Row label="MR Window">
+                      <Row label="MR Window" tooltip="Lookback window (in periods) for computing mean reversion z-scores">
                         <input
                           type="number"
                           style={inputStyle}
-                          value={currentStrategy?.signals_config?.mean_reversion_window ?? 0}
+                          value={currentStrategy.signals_config?.mean_reversion_window ?? 0}
                           onChange={(e) => updateField(["signals_config", "mean_reversion_window"], Number(e.target.value))}
                         />
                       </Row>
                     )}
 
                     {(inferredSignalSource === "momentum" || hasMomentumSignals) && (
-                      <Row label="Mom Skip">
+                      <Row label="Mom Skip" tooltip="Periods to skip at the recent end when computing momentum, avoiding short-term reversal (e.g. 1 = skip last month)">
                         <input
                           type="number"
                           style={inputStyle}
-                          value={currentStrategy?.signals_config?.momentum_skip_periods ?? 0}
+                          value={currentStrategy.signals_config?.momentum_skip_periods ?? 0}
                           onChange={(e) => updateField(["signals_config", "momentum_skip_periods"], Number(e.target.value))}
                         />
                       </Row>
                     )}
 
+                    {(inferredSignalSource === "pairs_trading" || hasPairsTrading) && (
+                        <div style={blBlock}>
+                          <Row label="Lookback Horizon" tooltip="Rolling window length (in periods) for estimating pair relationships and spread statistics">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_lookback_horizon ?? 20}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_lookback_horizon"], Number(e.target.value))} />
+                          </Row>                          
+                          <Row label="Cointegration Threshold" tooltip="Maximum p-value for the cointegration test; lower = stricter pair selection (e.g. 0.05 = 5% significance)">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.cointegration_threshold ?? 0.05}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "cointegration_threshold"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Correlation Filter" tooltip="Minimum correlation required between pair assets; higher = tighter, more stable pairs (e.g. 0.70 = 70%)">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.correlation_filter ?? 0.70}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "correlation_filter"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Entry" tooltip="Z-score threshold to open a pair trade; higher = fewer but stronger signals (e.g. 1.25 = 1.25 standard deviations)">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_entry ?? 1.25}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_entry"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Exit" tooltip="Z-score threshold to close a pair trade and take profit (e.g. 0.5 = close when spread reverts to 0.5 std devs)">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_exit ?? 0.5}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_exit"], Number(e.target.value))} />
+                          </Row>
+                          <Row label="Stop Loss" tooltip="Z-score at which a losing position is forcibly closed to limit losses (e.g. 3.5 = exit if spread widens to 3.5 std devs)">
+                            <input type="number" step={0.1} style={inputStyle}
+                              value={currentStrategy.signals_config?.pairs_trading?.pairs_stop_loss ?? 3.5}
+                              onChange={(e) => updateField(["signals_config", "pairs_trading", "pairs_stop_loss"], Number(e.target.value))} />
+                          </Row>                          
+                        </div>
+                    )}
+
+                    
                     {(inferredSignalSource === "ml_cross_sectional" || hasMlSignals) && (
                       <>
                         <div style={blHeader}>
@@ -488,37 +640,37 @@ export default function Sidebar({ setExperiment }: any) {
                         </div>
                         {hasMlSignals && (
                           <div style={blBlock}>
-                            <Row label="Training">
+                            <Row label="Training" tooltip="Length of historical data used to train the ML model">
                               <select style={inputStyle}
-                                value={currentStrategy?.signals_config?.ml_signals_config?.training_window ?? "2y"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.training_window ?? "2y"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "training_window"], e.target.value)}>
                                 {["6m", "1y", "2y", "3y", "5y"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Horizon">
+                            <Row label="Horizon" tooltip="Forward return horizon the model is trained to predict (e.g. 1m = predict 1-month ahead returns)">
                               <select style={inputStyle}
-                                value={currentStrategy?.signals_config?.ml_signals_config?.horizon ?? "1m"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.horizon ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "horizon"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Rebal Cadence">
+                            <Row label="Rebal Cadence" tooltip="How often the model is retrained and signals refreshed">
                               <select style={inputStyle}
-                                value={currentStrategy?.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.rebal_cadence ?? "1m"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "rebal_cadence"], e.target.value)}>
                                 {["1w", "2w", "1m", "3m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Sample Stride">
+                            <Row label="Sample Stride" tooltip="Step size between training samples; larger = fewer samples and faster training (e.g. 1w = one sample per week)">
                               <select style={inputStyle}
-                                value={currentStrategy?.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
+                                value={currentStrategy.signals_config?.ml_signals_config?.sample_stride ?? "1w"}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "sample_stride"], e.target.value)}>
                                 {["1d", "1w", "2w", "1m"].map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </Row>
-                            <Row label="Alpha">
+                            <Row label="Alpha" tooltip="Regularization strength for the ML model; higher = more regularization and simpler model, lower = more complex fit">
                               <input type="number" step={0.1} style={inputStyle}
-                                value={currentStrategy?.signals_config?.ml_signals_config?.alpha ?? 1.0}
+                                value={currentStrategy.signals_config?.ml_signals_config?.alpha ?? 1.0}
                                 onChange={(e) => updateField(["signals_config", "ml_signals_config", "alpha"], Number(e.target.value))} />
                             </Row>
                           </div>
@@ -526,43 +678,41 @@ export default function Sidebar({ setExperiment }: any) {
                       </>
                     )}
 
-                    {(inferredSignalSource === "black_litterman" || inferredSignalSource === "ml_cross_sectional" || hasBlackLitterman) && (
+                    {blApplies && (
                       <>
                         <div style={blHeader}>
-                          <span style={blLabel}>
-                            {inferredSignalSource === "ml_cross_sectional" ? "Black-Litterman Overlay" : "Black-Litterman"}
-                          </span>
+                          <span style={blLabel}>Black-Litterman Overlay</span>
                           {hasBlackLitterman ? (
                             <button style={blRemoveBtn} onClick={() => {
                               const updated = JSON.parse(JSON.stringify(editedStrategies))
                               delete updated[selectedIdx].signals_config.black_litterman
                               setEditedStrategies(updated)
                             }}>Remove ✕</button>
-                          ) : inferredSignalSource === "ml_cross_sectional" ? (
+                          ) : (
                             <button style={blAddBtn} onClick={() => {
                               updateField(["signals_config", "black_litterman"],
                                 { delta: 2.5, tau: 0.05, reversion_view: 0.03, ml_view_spread: 0.03, view_direction: "momentum" })
                             }}>+ Add</button>
-                          ) : null}
+                          )}
                         </div>
 
                         {hasBlackLitterman && (
                           <div style={blBlock}>
                             {([
-                              ["Delta", "delta", 0.1],
-                              ["Tau", "tau", 0.01],
-                              ["Reversion View", "reversion_view", 0.01],
-                              ["ML View Spread", "ml_view_spread", 0.01],
-                            ] as [string, string, number][]).map(([labelText, key, step]) => (
-                              <Row key={key} label={labelText}>
+                              ["Delta", "delta", 0.1, "Risk aversion coefficient for implied equilibrium returns; higher = more conservative prior (typical range 1–4)"],
+                              ["Tau", "tau", 0.01, "Scales uncertainty of the equilibrium prior; smaller = more confidence in the prior (typical range 0.01–0.10)"],
+                              ["Reversion View", "reversion_view", 0.01, "Expected mean-reversion return magnitude used as the investor view when applying mean-reversion signals"],
+                              ["ML View Spread", "ml_view_spread", 0.01, "Expected return spread used as the investor view when applying ML-based signals"],
+                            ] as [string, string, number, string][]).map(([labelText, key, step, tooltip]) => (
+                              <Row key={key} label={labelText} tooltip={tooltip}>
                                 <input type="number" step={step} style={inputStyle}
-                                  value={currentStrategy?.signals_config?.black_litterman?.[key] ?? ""}
+                                  value={currentStrategy.signals_config?.black_litterman?.[key] ?? ""}
                                   onChange={(e) => updateField(["signals_config", "black_litterman", key], Number(e.target.value))} />
                               </Row>
                             ))}
-                            <Row label="View Dir">
+                            <Row label="View Dir" tooltip="Direction of the investor view: momentum = expect trend continuation, mean_reversion = expect reversal toward the mean">
                               <select style={inputStyle}
-                                value={currentStrategy?.signals_config?.black_litterman?.view_direction ?? "momentum"}
+                                value={currentStrategy.signals_config?.black_litterman?.view_direction ?? "momentum"}
                                 onChange={(e) => updateField(["signals_config", "black_litterman", "view_direction"], e.target.value)}>
                                 <option value="momentum">momentum</option>
                                 <option value="mean_reversion">mean_reversion</option>
@@ -578,9 +728,9 @@ export default function Sidebar({ setExperiment }: any) {
                     )}
                   </Section>
 
-                  {currentStrategy?.rebalance_problem?.strategy_type === "fwp_strategy" && (() => {
-                    const tickers: string[] = currentStrategy?.market_state_config?.investment_universe ?? []
-                    const rawWeights = currentStrategy?.rebalance_problem?.initial_weights
+                  {currentStrategy.rebalance_problem?.strategy_type === "fwp_strategy" && (() => {
+                    const tickers: string[] = currentStrategy.market_state_config?.investment_universe ?? []
+                    const rawWeights = currentStrategy.rebalance_problem?.initial_weights
                     
                     // Normalize to dict
                     const weightsDict: Record<string, number> = Array.isArray(rawWeights)
@@ -610,13 +760,23 @@ export default function Sidebar({ setExperiment }: any) {
                       updateField(["rebalance_problem", "initial_weights"], updated)
                     }
 
+                    const clearWeights = () => {
+                      updateField(
+                        ["rebalance_problem", "initial_weights"],
+                        Object.fromEntries(tickers.map((ticker: string) => [ticker, 0]))
+                      )
+                    }
+
                     return (
                       <Section title="Fixed Weights">
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                           <span style={{ fontSize: 10, color: valid ? "#3fb950" : "#f85149" }}>
                             Sum: {(total * 100).toFixed(1)}% {valid ? "✓" : "— must equal 100%"}
                           </span>
-                          <button style={smallBtn} onClick={equalise}>Equalise</button>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button style={smallBtn} onClick={clearWeights}>Clear</button>
+                            <button style={smallBtn} onClick={equalise}>Equalise</button>
+                          </div>
                         </div>
                         {tickers.map(ticker => (
                           <Row key={ticker} label={ticker}>
@@ -630,20 +790,19 @@ export default function Sidebar({ setExperiment }: any) {
                       </Section>
                     )
                   })()}
-                  {currentStrategy?.rebalance_problem?.constraints && (
+                  {currentStrategy.rebalance_problem?.constraints && (
                     <Section title="Constraints">
                       {([
-                        ["Max Pos", "max_position_size", undefined],
-                        ["Min Pos", "min_position_size", undefined],
-                        ["Max #", "max_positions", undefined],
-                        ["Turnover", "turnover_limit", undefined],
+                        ["Max Pos", "max_position_size", "Maximum weight any single position can hold (e.g. 0.10 = 10% of portfolio)"],
+                        ["Min Pos", "min_position_size", "Minimum weight for any held position; prevents trivially small allocations"],
+                        ["Max #", "max_positions", "Maximum number of simultaneous positions in the portfolio"],
+                        ["Turnover", "turnover_limit", "Maximum allowable portfolio turnover per rebalance period"],
                         ["Risk Aversion", "risk_aversion", "0.10 — barely penalizes risk, near pure return maximization\n1.0 — balanced, textbook mean-variance\n2.5 — moderately risk averse, common in institutional settings\n5.0+ — conservative, heavily penalizes variance"],
-                        ["Vol Limit", "optimizer_vol_constraint", undefined],
-                      ] as [string, string, string | undefined][]).map(([labelText, key, tooltip]) => (
-                        <Row key={key} label={labelText}>
+                        ["Vol Limit", "optimizer_vol_constraint", "Maximum annualized portfolio volatility the optimizer will target; leave blank for unconstrained"],
+                      ] as [string, string, string][]).map(([labelText, key, tooltip]) => (
+                        <Row key={key} label={labelText} tooltip={tooltip}>
                           <input type="number" step={0.01} style={inputStyle}
-                            title={tooltip}
-                            value={currentStrategy?.rebalance_problem?.constraints?.[key] ?? ""}
+                            value={currentStrategy.rebalance_problem?.constraints?.[key] ?? ""}
                             onChange={(e) => updateField(["rebalance_problem", "constraints", key], Number(e.target.value))} />
                         </Row>
                       ))}
@@ -666,6 +825,17 @@ export default function Sidebar({ setExperiment }: any) {
   )
 }
 
+function StatCard({ label, name, value, positive, negative }: any) {
+  const valueColor = positive ? "#3fb950" : negative ? "#f85149" : "#e6edf3"
+  return (
+    <div style={statCard}>
+      <div style={statLabel}>{label}</div>
+      <div style={{ ...statValue, color: valueColor }}>{value ?? "-"}</div>
+      <div style={statName}>{name}</div>
+    </div>
+  )
+}
+
 function Section({ title, children }: any) {
   return (
     <div style={sectionStyle}>
@@ -676,10 +846,13 @@ function Section({ title, children }: any) {
 }
 
 // Inline label+input row to halve vertical space vs stacked label/input
-function Row({ label, children }: any) {
+function Row({ label, tooltip, children }: any) {
   return (
     <div style={rowStyle}>
-      <span style={rowLabel}>{label}</span>
+      <span style={rowLabel}>
+        {label}
+        {tooltip && <span title={tooltip} style={{ marginLeft: 3, color: "#58a6ff", cursor: "help", fontSize: 11 }}>ⓘ</span>}
+      </span>
       <div style={rowInput}>{children}</div>
     </div>
   )
@@ -702,6 +875,12 @@ const fileInput: CSSProperties = { fontSize: 11, color: "#8b949e" }
 const pill: CSSProperties = { fontSize: 10, color: "#3fb950", background: "#0f2b14", border: "1px solid #238636", borderRadius: 20, padding: "1px 8px", display: "inline-block" }
 const runButton: CSSProperties = { padding: "8px 12px", background: "#238636", border: "none", color: "white", cursor: "pointer", borderRadius: 6, fontWeight: 600, fontSize: 12, width: "100%" }
 const divider: CSSProperties = { borderColor: "#2a2f3a", margin: "2px 0" }
+const quickStatsTitle: CSSProperties = { fontSize: 10, textTransform: "uppercase", letterSpacing: "0.6px", color: "#8b949e", fontWeight: 600 }
+const statsGrid: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }
+const statCard: CSSProperties = { background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: "6px 8px" }
+const statLabel: CSSProperties = { fontSize: 9, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 1 }
+const statValue: CSSProperties = { fontSize: 14, fontWeight: 700, lineHeight: 1.2 }
+const statName: CSSProperties = { fontSize: 9, color: "#8b949e", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
 const strategyNav: CSSProperties = { display: "flex", flexDirection: "column", gap: 3 }
 const strategyBtn: CSSProperties = { background: "none", border: "1px solid #30363d", borderRadius: 4, color: "#8b949e", padding: "4px 8px", fontSize: 11, cursor: "pointer", textAlign: "left" }
 const activeStrategyBtn: CSSProperties = { ...strategyBtn, background: "#161b22", border: "1px solid #388bfd", color: "#e6edf3" }
@@ -724,6 +903,7 @@ const tickerChip: CSSProperties = { background: "none", border: "1px solid #3036
 const tickerChipActive: CSSProperties = { ...tickerChip, background: "#0f2b14", border: "1px solid #238636", color: "#3fb950" }
 const smallBtn: CSSProperties = { background: "none", border: "1px solid #30363d", borderRadius: 3, color: "#8b949e", fontSize: 10, cursor: "pointer", padding: "2px 6px" }
 const loadButton: CSSProperties = { padding: "8px 12px", background: "#1f6feb", border: "none", color: "white", cursor: "pointer", borderRadius: 6, fontWeight: 600, fontSize: 12, width: "100%" }
+const exportButton: CSSProperties = { padding: "8px 12px", background: "none", border: "1px solid #238636", color: "#3fb950", cursor: "pointer", borderRadius: 6, fontWeight: 600, fontSize: 12, width: "100%" }
 const changeLinkBtn: CSSProperties = { background: "none", border: "none", color: "#8b949e", fontSize: 10, cursor: "pointer", padding: 0, textDecoration: "underline" }
 const addStrategyBtn: CSSProperties = {
   background: "none", border: "1px dashed #30363d", borderRadius: 4,
@@ -732,6 +912,10 @@ const addStrategyBtn: CSSProperties = {
 }
 const newBadge: CSSProperties = {
   fontSize: 9, color: "#3fb950", border: "1px solid #238636",
+  borderRadius: 3, padding: "0 4px", marginLeft: 6
+}
+const pinnedBadge: CSSProperties = {
+  fontSize: 9, color: "#58a6ff", border: "1px solid #1f6feb",
   borderRadius: 3, padding: "0 4px", marginLeft: 6
 }
 const removeStrategyBtn: CSSProperties = {

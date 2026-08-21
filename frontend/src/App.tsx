@@ -33,7 +33,8 @@ export default function App() {
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set())
   const [dateWindow, setDateWindow] = useState<DateWindow | null>(null)
 
-  const runs: any[] = experiment?.runs ?? []     // RUNS-SOURCE
+  const runs: any[] = experiment?.strategy_runs ?? []     // RUNS-SOURCE
+  const pinnedRuns = runs.filter((r: any) => pinnedIds.has(r.run_id))
 
   // When a suite finishes (runs appear or change), close the Lab and show Results.
   const prevRunCount = useRef(0)
@@ -70,6 +71,8 @@ export default function App() {
         onClose={() => setLabOpen(false)}
         experiment={experiment}
         setExperiment={setExperiment}
+        pinnedRuns={pinnedRuns}
+        onClearPinned={() => setPinnedIds(new Set())}
       />
 
       <main style={main}>
@@ -81,11 +84,31 @@ export default function App() {
               <div style={resultsPage}>
                 <div style={resultsHeader}>
                   <h1 style={resultsTitle}>Results</h1>
-                  <DownloadReport experiment={experiment} />
+                  <div style={headerControls}>
+                    <label style={selectLabel}>
+                      Detail for
+                      <select
+                        style={runSelect}
+                        value={selectedRun?.run_id ?? ""}
+                        onChange={(e) => {
+                          const run = runs.find((r: any) => r.run_id === e.target.value)
+                          if (run) setSelectedRun(run)
+                        }}
+                      >
+                        {runs.map((r: any) => (
+                          <option key={r.run_id} value={r.run_id}>
+                            {formatStrategyName(r.strategy_name)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <DownloadReport experiment={experiment} pinnedRuns={pinnedRuns} />
+                  </div>
                 </div>
                 <StrategyGrid
                   runs={runs}
                   onSelect={setSelectedRun}
+                  selectedRunId={selectedRun?.run_id ?? null}
                   pinnedIds={pinnedIds}
                   onPin={togglePin}
                   dateWindow={dateWindow}
@@ -119,6 +142,10 @@ export default function App() {
       </main>
     </div>
   )
+}
+
+function formatStrategyName(name: string) {
+  return name.replace("_portfolio", "").replace(/_/g, " ")
 }
 
 function EmptyResults({ onOpenLab }: { onOpenLab: () => void }) {
@@ -175,6 +202,17 @@ const resultsHeader: CSSProperties = {
 }
 const resultsTitle: CSSProperties = {
   fontSize: 16, fontWeight: 600, color: "#e6edf3", margin: 0, letterSpacing: "0.2px",
+}
+const headerControls: CSSProperties = {
+  display: "flex", alignItems: "center", gap: 14,
+}
+const selectLabel: CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8,
+  fontSize: 11, color: "#8b949e", whiteSpace: "nowrap",
+}
+const runSelect: CSSProperties = {
+  background: "#161b22", color: "#e6edf3", border: "1px solid #2a2f3a",
+  borderRadius: 6, padding: "5px 10px", fontSize: 12, minWidth: 180,
 }
 
 const emptyResults: CSSProperties = {

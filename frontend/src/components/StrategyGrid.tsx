@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react"
 import type { CSSProperties } from "react"
 import type React from "react"
-import { getEffectiveSummary, getCachedSeries, computeMetrics } from "../utils/metricsUtils"
+import { getEffectiveSummary } from "../utils/metricsUtils"
 import type { DateWindow } from "../utils/metricsUtils"
 
 type SortKey = "strategy_name" | "return" | "volatility" | "sharpe_ratio" | "max_drawdown" | "turnover"
@@ -19,12 +19,13 @@ const TOOLTIPS: Record<string, string> = {
 interface Props {
   runs: any[]
   onSelect: (run: any) => void
+  selectedRunId?: string | null
   pinnedIds: Set<string>
   onPin: (run: any) => void
   dateWindow: DateWindow | null
 }
 
-export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWindow }: Props) {
+export default function StrategyGrid({ runs, onSelect, selectedRunId, pinnedIds, onPin, dateWindow }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("sharpe_ratio")
   const [ascending, setAscending] = useState(false)
 
@@ -41,13 +42,6 @@ export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWin
     })
     return map
   }, [runs, dateWindow])
-
-  const benchmarkMetrics = useMemo(() => {
-    const benchRun = runs.find((r: any) => getCachedSeries(r).benchmark_returns.length > 0)
-    if (!benchRun) return null
-    const cached = getCachedSeries(benchRun)
-    return computeMetrics(cached.benchmark_returns, [], cached.benchmark)
-  }, [runs])
 
   const sortedRuns = useMemo(() => {
     return [...runs].sort((a, b) => {
@@ -93,8 +87,14 @@ export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWin
               const s = effectiveSummaries[run.run_id]
               const colorIdx = runs.findIndex((r: any) => r.run_id === run.run_id)
               const isPinned = pinnedIds?.has(run.run_id)
+              const isSelected = run.run_id === selectedRunId
               return (
-                <tr key={run.run_id} onClick={() => onSelect(run)} style={row}>
+                <tr
+                  key={run.run_id}
+                  onClick={() => onSelect(run)}
+                  style={isSelected ? selectedRow : row}
+                  aria-selected={isSelected}
+                >
                   <td style={leftCell}>
                     <span style={{ ...colorDot, backgroundColor: COLORS[colorIdx % COLORS.length] }} />
                     {formatStrategyName(run.strategy_name)}
@@ -116,20 +116,6 @@ export default function StrategyGrid({ runs, onSelect, pinnedIds, onPin, dateWin
                 </tr>
               )
             })}
-            {benchmarkMetrics && (
-              <tr key="__benchmark" style={benchmarkRow}>
-                <td style={leftCell}>
-                  <span style={{ ...colorDot, backgroundColor: "#8b949e", borderRadius: 2 }} />
-                  Benchmark
-                </td>
-                <td style={rightCellGreen(benchmarkMetrics.return)}>{formatPct(benchmarkMetrics.return)}</td>
-                <td style={rightCell}>{formatPct(benchmarkMetrics.volatility)}</td>
-                <td style={rightCell}>{formatNumber(benchmarkMetrics.sharpe_ratio)}</td>
-                <td style={rightCellRed(benchmarkMetrics.max_drawdown)}>{formatPct(benchmarkMetrics.max_drawdown)}</td>
-                <td style={rightCell}>—</td>
-                <td style={rightCell} />
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -192,7 +178,11 @@ const headerRow: CSSProperties = { borderBottom: "1px solid #2a2f3a" }
 const leftHeader: CSSProperties = { padding: "8px 10px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#8b949e", cursor: "pointer", userSelect: "none" }
 const rightHeader: CSSProperties = { padding: "8px 10px", textAlign: "right", fontSize: 12, fontWeight: 600, cursor: "pointer", userSelect: "none" }
 const row: CSSProperties = { borderBottom: "1px solid #21262d", cursor: "pointer" }
-const benchmarkRow: CSSProperties = { borderBottom: "1px solid #21262d", borderTop: "1px solid #30363d", opacity: 0.8 }
+const selectedRow: CSSProperties = {
+  ...row,
+  background: "rgba(56,139,253,0.10)",
+  boxShadow: "inset 2px 0 0 #388bfd",
+}
 const leftCell: CSSProperties = { padding: "8px 10px", textAlign: "left", fontSize: 12, display: "flex", alignItems: "flex-start", gap: 6 }
 const rightCell: CSSProperties = { padding: "8px 10px", textAlign: "right", fontSize: 12 }
 const rightCellGreen = (val: number | null | undefined): CSSProperties => ({

@@ -53,12 +53,6 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
     return Array.from(dateSet).sort()
   }, [runs])  
 
-  // Whether any run carries a benchmark wealth series in its payload
-  const hasBenchmark = useMemo(
-    () => runs.some((r: any) => getCachedSeries(r).benchmark.length > 0),
-    [runs]
-  )
-
   // Build chart data — each run rebases to its own first available date
   const data = useMemo(() => {
     const runMaps: Record<string, Record<string, number>> = {}
@@ -248,13 +242,6 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
                   }}>
                     <div style={{ color: "#8b949e", marginBottom: 6 }}>{formatDate(label)}</div>
                     {payload.map((entry: any) => {
-                      if (entry.dataKey === "__benchmark") {
-                        return (
-                          <div key="__benchmark" style={{ color: entry.stroke, marginBottom: 2 }}>
-                            Benchmark: {entry.value?.toFixed(3)}x
-                          </div>
-                        )
-                      }
                       const run = runs.find((r: any) => r.run_id === entry.dataKey)
                       const name = run ? formatStrategyName(run.strategy_name) : entry.dataKey
                       return (
@@ -278,93 +265,9 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
                 connectNulls={false}
               />
             ))}
-            {hasBenchmark && (
-              <Line
-                type="monotone"
-                dataKey="__benchmark"
-                stroke="#8b949e"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                dot={false}
-                connectNulls={false}
-              />
-            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
-
-      {runs.some((run: any) => getCachedIcSeries(run).ic_series.length > 0) &&  (<>
-      {/* Header */}
-      <div style={headerBar}>
-        <span style={headerLabel}>Information Coefficient Analysis</span>
-        {isWindowed ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={windowBadge}>
-              {formatDate(getDateAtPct(sliderStart))} → {formatDate(getDateAtPct(sliderEnd))}
-            </span>
-            <span style={rebaseNote}>Rebased</span>
-            <button style={resetBtn} onClick={handleReset}>Reset</button>
-          </div>
-        ) : (
-          <span style={hintText}>Drag sliders below to zoom</span>
-        )}
-      </div>
-
-      {/* Place new chart here */}
-      <div style={{ height: 300, padding: "12px 16px 0" }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={icVisibleData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <XAxis
-              dataKey="date"
-              tickFormatter={(d: string) => new Date(d).getFullYear().toString()}
-              interval="preserveStartEnd"
-              tick={{ fill: "#8b949e", fontSize: 11 }}
-              minTickGap={50}
-            />
-            <YAxis
-              domain={["auto", "auto"]}
-              tickFormatter={(v) => v.toFixed(2)}
-              tick={{ fill: "#8b949e", fontSize: 11 }}
-              width={40}
-            />
-            <Tooltip
-              content={({ active, payload, label }: any) => {
-                if (!active || !payload?.length) return null
-                return (
-                  <div style={{
-                    background: "#161b22", border: "1px solid #2a2f3a",
-                    padding: "8px 12px", fontSize: 12, borderRadius: 6
-                  }}>
-                    <div style={{ color: "#8b949e", marginBottom: 6 }}>{formatDate(label)}</div>
-                    {payload.map((entry: any) => {
-                      const run = runs.find((r: any) => r.run_id === entry.dataKey)
-                      const name = run ? formatStrategyName(run.strategy_name) : entry.dataKey
-                      return (
-                        <div key={entry.dataKey} style={{ color: entry.stroke, marginBottom: 2 }}>
-                          {name}: {entry.value?.toFixed(3)}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              }}
-            />
-            <ReferenceLine y={0} stroke="#444" strokeDasharray="3 3" />
-            {runs.map((run: any, i: number) => (
-              <Line
-                key={run.run_id}
-                type="monotone"
-                dataKey={run.run_id}
-                stroke={COLORS[i % COLORS.length]}
-                strokeWidth={1.5}
-                dot={false}
-                connectNulls={false}
-              />
-            ))}            
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      </>)}
 
       {/* Dual drag slider */}
       <div style={sliderContainer}>
@@ -411,12 +314,6 @@ export default function StrategyDetails({ runs, onWindowChange, dateWindow }: Pr
             <span style={legendText}>{formatStrategyName(run.strategy_name)}</span>
           </div>
         ))}
-        {hasBenchmark && (
-          <div style={legendItem}>
-            <span style={{ width: 16, height: 0, borderTop: "2px dashed #8b949e", display: "inline-block" }} />
-            <span style={legendText}>Benchmark</span>
-          </div>
-        )}
       </div>
     </div>
   )
