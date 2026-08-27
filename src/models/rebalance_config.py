@@ -55,6 +55,7 @@ class RebalanceProblemConfig:
     rebalance_frequency: Optional[str]
     apply_max_return_objective: bool
     apply_sharpe_objective: bool
+    apply_tax_objective: bool
     initial_weights: Optional[Any]
     starting_portfolio_value: float
     cash_infusion: float
@@ -71,6 +72,7 @@ class RebalanceProblemConfig:
             rebalance_frequency=d.get("rebalance_frequency", None),
             apply_max_return_objective=d.get("apply_max_return_objective", False),
             apply_sharpe_objective=d.get("apply_sharpe_objective", False),
+            apply_tax_objective=d.get("apply_tax_objective", False),
             initial_weights=d.get("initial_weights", None),
             starting_portfolio_value=d.get("starting_portfolio_value", 10000),
             cash_infusion=d.get("cash_infusion", 1000),

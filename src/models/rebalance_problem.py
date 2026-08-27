@@ -32,6 +32,10 @@ class RebalanceProblem:
         return self._data.get("apply_sharpe_objective", False)
 
     @property
+    def apply_tax_objective(self) -> bool:
+        return self._data.get("apply_tax_objective", False)
+
+    @property
     def initial_weights(self) -> dict:
         return self._data.get("initial_weights", {})
 

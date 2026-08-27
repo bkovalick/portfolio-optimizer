@@ -1,7 +1,9 @@
 import abc
 import numpy as np
+
 from models.rebalance_problem import RebalanceProblem
-from models.backtest_run import BacktestRun
+from models.rebalance_context import RebalanceContext
+from models.rebalance_solution import RebalanceSolution
 from domain.signals.signals import Signals
 from domain.optimizers.optimizer import Optimizer
 
@@ -20,7 +22,7 @@ class BaseStrategy(abc.ABC):
         return {}
 
     @abc.abstractmethod
-    def rebalance(self, signals: Signals, current_weights: np.ndarray):
+    def rebalance(self, rebalance_context: RebalanceContext) -> RebalanceSolution:
         raise NotImplementedError("Derived classes must implement 'rebalance' method")
     
     def _apply_vol_targeting(self, 

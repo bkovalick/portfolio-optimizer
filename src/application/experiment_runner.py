@@ -5,6 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional
 
 from domain.portfolio.portfolio import Portfolio
+from domain.portfolio.tax_lot_ledger import TaxLotLedger
 from reporting.performance_analyzer import PerformanceAnalyzer
 from reporting.diagnostics import FactorRegressionDiagnostics, LongOnlyICDiagnostics, PairsSpreadDiagnostics
 from simulation.backtesting_engine import BacktestingEngine
@@ -79,6 +80,11 @@ def build_signals_factory(strategy_cfg: dict, market_state: MarketState, benchma
     signals_factory = SignalFactory(signal_config, market_state, benchmark)
     return signals_factory
 
+def build_tax_lot_ledger(rebalance_problem) -> Optional[TaxLotLedger]:
+    if rebalance_problem.apply_tax_objective:
+        return TaxLotLedger()
+    return None
+
 def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConfig) -> StrategyRun:
     logger.info(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
     print(f"Running strategy: {strategy_cfg.get('name', 'Unnamed Strategy')}")
@@ -91,12 +97,13 @@ def run_strategy_worker(strategy_cfg: dict, market_store_config: MarketStoreConf
     ).build()
     
     optimizer = OptimizerFactory.create_optimizer(rebalance_problem.optimizer_type)
+    tax_lot_ledger = build_tax_lot_ledger(rebalance_problem)
     strategy = StrategyFactory.create_strategy(rebalance_problem, optimizer)
     benchmark = market_store.prices[market_store_config.benchmark]
     signals_factory = build_signals_factory(strategy_cfg, market_state, benchmark)
     
     run = BacktestingEngine(
-        Portfolio(), strategy, market_state, signals_factory, benchmark
+        Portfolio(), strategy, market_state, signals_factory, tax_lot_ledger
     ).run_backtest(rebalance_problem)
     
     portfolio_results = PerformanceAnalyzer().compute(run.portfolio, market_store_config, market_state_config, benchmark)

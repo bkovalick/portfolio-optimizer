@@ -8,21 +8,9 @@ import StrategyGrid from "./components/StrategyGrid"
 import StrategyDetails from "./components/StrategyDetails"
 import AnalysisPanel from "./components/AnalysisPanel"
 import StatisticalEvidence from "./components/StatisticalEvidence"
-import DownloadReport from "./components/Downloadreport"
+import DownloadReport from "./components/DownloadReport"
 import AttributionPage from "./components/AttributionPage"
 import type { DateWindow } from "./utils/metricsUtils"
-
-/**
- * App shell.
- *
- * INTEGRATION NOTES — adapting to your existing App.tsx:
- *  - `experiment` / `setExperiment` are the same pair your Sidebar already
- *    receives. If your runs live somewhere other than `experiment.runs`,
- *    change the one line marked RUNS-SOURCE below.
- *  - The drawer auto-closes when a run completes (runs arriving), landing
- *    you on Results. Remove that effect if you'd rather close manually.
- *  - Everything below the shell is your existing components, unchanged.
- */
 
 export default function App() {
   const [experiment, setExperiment] = useState<any>(null)

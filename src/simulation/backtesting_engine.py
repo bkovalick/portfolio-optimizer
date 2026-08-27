@@ -4,14 +4,16 @@ import time
 import numpy as np
 import pandas as pd
 
-from domain.portfolio.iportfolio import PortfolioInterface
+from domain.portfolio.portfolio import Portfolio
 from domain.strategies.base_strategy import BaseStrategy
+from domain.portfolio.tax_lot_ledger import TaxLotLedger
 from models.rebalance_problem import RebalanceProblem
 from models.backtest_run import BacktestRun
+from models.rebalance_context import RebalanceContext
+from models.rebalance_solution import RebalanceSolution
 from simulation.market_state import MarketState
 from services.signals_factory import SignalFactory
 from utils.rebalance_steps import FREQ_TO_STEPS
-
 
 logger = logging.getLogger(__name__)
 
@@ -24,19 +26,20 @@ class BacktestingEngineInterface(abc.ABC):
 class BacktestingEngine(BacktestingEngineInterface):
     """Concrete implementation of a backtesting engine."""
     def __init__(self, 
-                 portfolio: PortfolioInterface, 
+                 portfolio: Portfolio,
                  strategy: BaseStrategy,
                  market_state: MarketState,
                  signal_factory: SignalFactory,
-                 benchmark: pd.Series):
+                 tax_lot_ledger: TaxLotLedger=None):
         self.portfolio = portfolio
         self.strategy = strategy
         self.market_state = market_state
-        self.benchmark = benchmark
         self.signals_factory = signal_factory
+        self.tax_lot_ledger = tax_lot_ledger
 
     def run_backtest(self, rebalance_problem: RebalanceProblem):
         """Run backtest on the given rebalance problem."""
+        start_time = time.time()
         logger.info(
             "Starting backtest for %s assets at rebalance frequency %s",
             len(rebalance_problem.investment_universe),
@@ -46,18 +49,33 @@ class BacktestingEngine(BacktestingEngineInterface):
             len(rebalance_problem.investment_universe),
             rebalance_problem.rebalance_frequency,
         ))
-        start_time = time.time()
+        
         self.rebalance_every = self._get_steps(rebalance_problem.rebalance_frequency)
+
         tickers = rebalance_problem.investment_universe
         initial_weights = np.array([
             rebalance_problem.initial_weights.get(ticker, 0.0) 
             for ticker in tickers
         ])
+
         self.portfolio.initialize(
             self.market_state.investment_prices.index, 
             self.market_state.investment_prices.columns, 
             initial_weights
         )
+
+        if self.tax_lot_ledger is not None:
+            self.tax_lot_ledger.update_ledger(
+                self.market_state,
+                self.portfolio,
+                rebalance_solution=RebalanceSolution(
+                    target_weights=initial_weights,
+                    sell_allocations={},
+                    realized_tax_cost=0.0,
+                    tracking_error=0.0
+                ),
+                cursor=0
+            )
         
         prev_weights = np.array(initial_weights)
         current_year = None
@@ -86,8 +104,20 @@ class BacktestingEngine(BacktestingEngineInterface):
             signals = self.signals_factory.build_signals()
             logger.debug("Rebalance step reached at %s (cursor=%s)", date, cursor)
 
-            target_weights = self.strategy.rebalance(signals, prev_weights)
+            rebalance_context = self._build_rebalance_context(cursor, signals, rebalance_problem)
+            rebalance_solution = self.strategy.rebalance(rebalance_context)
+            target_weights = np.array(rebalance_solution.target_weights)
+
             self.portfolio.apply(target_weights, prev_weights, cursor)
+
+            if self.tax_lot_ledger is not None:
+                self.tax_lot_ledger.update_ledger(
+                    self.market_state,
+                    self.portfolio,
+                    rebalance_solution,
+                    cursor
+                )
+
             prev_weights = target_weights
 
         logger.info("Backtest completed in %.2f seconds", time.time() - start_time)
@@ -111,3 +141,17 @@ class BacktestingEngine(BacktestingEngineInterface):
             portfolio=self.portfolio,
             **diagnostics
         )    
+
+    def _build_rebalance_context(self, cursor: int, signals: dict, rebalance_problem: RebalanceProblem) -> RebalanceContext:
+        current_weights = self.portfolio.weights.iloc[cursor]
+        initial_weights = rebalance_problem.initial_weights
+        return RebalanceContext(
+            cursor=cursor,
+            current_weights=current_weights,
+            signals=signals,
+            portfolio=self.portfolio,
+            initial_weights=initial_weights,
+            investment_universe=self.market_state.investment_universe,
+            tax_lot_ledger=self.tax_lot_ledger,
+            rebalance_problem=rebalance_problem
+        )

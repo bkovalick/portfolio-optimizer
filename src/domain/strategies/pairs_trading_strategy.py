@@ -1,13 +1,16 @@
+import numpy as np
+
 from domain.strategies.base_strategy import BaseStrategy
 from domain.signals.pairs_trading_signal import PairsTradingSignal
+from domain.optimizers.optimizer import Optimizer
 from models.rebalance_problem import RebalanceProblem
-
-import numpy as np
+from models.rebalance_context import RebalanceContext
+from models.rebalance_solution import RebalanceSolution
 
 class PairsTradingStrategy(BaseStrategy):
     def __init__(self, 
                  rebalance_problem: RebalanceProblem, 
-                 optimizer=None):
+                 optimizer: Optimizer = None):
         super().__init__(rebalance_problem, optimizer)
         self.pairs_cache = []
         self.existing_pairs = None
@@ -15,20 +18,28 @@ class PairsTradingStrategy(BaseStrategy):
     def get_diagnostics(self) -> dict:
         return {"pairs_cache": self.pairs_cache}
 
-    def rebalance(self, 
-                  signals: dict, 
-                  current_weights: np.ndarray) -> np.ndarray:
+    def rebalance(self, rebalance_context: RebalanceContext) -> RebalanceSolution:
         """Calculate rebalance weights"""
         signal_key = self.rebalance_problem.signal_source
-        active_signal = signals.get(signal_key)
+        active_signal = rebalance_context.signals.get(signal_key)
 
         if active_signal is None:
-            return current_weights 
+            return RebalanceSolution(
+                target_weights=rebalance_context.current_weights,
+                sell_allocations={},
+                realized_tax_cost=0.0,
+                tracking_error=0.0
+            )
         
         pair_weights = self._run_pairs_strategy(
-            current_weights, active_signal
+            rebalance_context.current_weights, active_signal
         )
-        return pair_weights
+        return RebalanceSolution(
+            target_weights=pair_weights,
+            sell_allocations={},
+            realized_tax_cost=0.0,
+            tracking_error=0.0
+        )
 
     def _run_pairs_strategy(self,
                             current_weights: np.ndarray,

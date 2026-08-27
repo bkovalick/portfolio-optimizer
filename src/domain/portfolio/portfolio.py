@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
-from domain.portfolio.iportfolio import PortfolioInterface
 
-class Portfolio(PortfolioInterface):
+class Portfolio:
     """Portfolio class that houses weights, returns, and turnover calculations."""
-
     def __init__(self):
         self.weights = None
         self.returns = None

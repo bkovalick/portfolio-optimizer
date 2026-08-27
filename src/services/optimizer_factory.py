@@ -1,10 +1,10 @@
 import logging
 
-import numpy as np
 from domain.optimizers.optimizer import Optimizer
 from domain.optimizers.base_optimizer import BaseOptimizer
-from models.rebalance_problem import RebalanceProblem
-
+from domain.signals.signals import Signals
+from models.rebalance_context import RebalanceContext
+from models.rebalance_solution import RebalanceSolution
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,14 @@ class FixedWeightOptimizer(BaseOptimizer):
         super().__init__()
 
     def optimize(self, 
-                 rebalance_problem: RebalanceProblem, 
-                 current_weights: np.ndarray = None):
-        return current_weights
+                 rebalance_context: RebalanceContext,
+                 active_signal: Signals = None) -> RebalanceSolution:
+        return RebalanceSolution(
+            target_weights=rebalance_context.current_weights,
+            sell_allocations={},
+            realized_tax_cost=0.0,
+            tracking_error=0.0
+        )
 
 class OptimizerFactory:
 
