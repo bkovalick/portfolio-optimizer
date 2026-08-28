@@ -126,9 +126,10 @@ class Optimizer(BaseOptimizer):
 		tickers = rebalance_problem.investment_universe
 		target_weights = decision_variables['portfolio_weights'].value
 		sell_allocations = decision_variables['portfolio_sell_fractions'].value
-		total_tax_cost = getattr(tax_lot_ledger, "tax_cost", 0.0) if tax_lot_ledger is not None else 0.0
+		total_tax_cost = getattr(tax_lot_ledger, "TaxCost", 0.0) if tax_lot_ledger is not None else 0.0
 		realized_tax_cost = total_tax_cost * np.sum(sell_allocations) if sell_allocations is not None else 0.0
-		tracking_error = np.linalg.norm(target_weights - rebalance_problem.initial_weights.values, ord=1)
+		# tracking_error = np.linalg.norm(target_weights - rebalance_problem.initial_weights.values, ord=1)
+		tracking_error = None # Currently aren't solving this
 		
 		return RebalanceSolution(
 			target_weights=pd.Series(target_weights, index=tickers),
@@ -312,20 +313,19 @@ class Optimizer(BaseOptimizer):
 		if tax_lot_ledger is None or getattr(rebalance_problem, "apply_tax_objective", False) is False:
 			return []
 		
-		tickers = rebalance_problem.investment_universe
+		risky_indices = self._get_risky_indices(rebalance_problem)
+		risky_tickers = [
+			rebalance_problem.investment_universe[index]
+			for index in risky_indices
+		]
 		tax_lots = tax_lot_ledger.tax_lots
-		total_portfolio_value = tax_lot_ledger._base_nav
-
-		# how much of each lot do we want to sell, and how does that map to the total sell amount for each ticker
-		sell_fractions = decision_variables.get('portfolio_sell_fractions')
+		total_portfolio_value = tax_lots["CurrentValue"].sum() if not tax_lots.empty else 1.0
 		sell_trades = decision_variables.get('portfolio_sells')
-
-		# dollar value sold per lot = current value of each lot * fraction sold
-		current_lot_value = tax_lots["current_value"].values
-		dollar_sold_per_lot = cp.multiply(current_lot_value, sell_fractions)
-
-		# reduction in weight
-		weight_reduction_per_ticker = self._map_lot_to_ticker(tax_lots, tickers).T @ (dollar_sold_per_lot / total_portfolio_value)
+		sell_fractions = decision_variables.get('portfolio_sell_fractions')
+		
+		lot_to_ticker = self._map_lot_to_ticker(tax_lots, risky_tickers)
+		dollar_sold_per_lot = cp.multiply(tax_lots["CurrentValue"].values, sell_fractions)
+		weight_reduction_per_ticker = lot_to_ticker.T @ (dollar_sold_per_lot / total_portfolio_value)
 
 		return [
 			sell_fractions <= 1,
@@ -362,7 +362,7 @@ class Optimizer(BaseOptimizer):
 		portfolio_risk = cp.quad_form(risky_weights, cp.psd_wrap(cov_matrix))
 		concentration_objective = self._get_concentration_objective(risky_weights, rebalance_problem)
 		transaction_cost_penalty = self._get_transaction_cost_penalty(transaction_cost, decision_variables)
-		tax_cost_objective = self._get_tax_cost_objective(decision_variables, tax_lot_ledger)
+		tax_cost_objective = self._get_tax_cost_objective(decision_variables, rebalance_problem, tax_lot_ledger)
 
 		# Define the objective function to maximize returns minus risk, concentration, and transaction costs
 		objective = cp.Maximize(mean_vector @ risky_weights - risk_aversion * \
@@ -389,25 +389,32 @@ class Optimizer(BaseOptimizer):
 
 	def _get_tax_cost_objective(self,
 					  decision_variables: dict,
+					  rebalance_problem: RebalanceProblem,
 					  tax_lot_ledger: TaxLotLedger):
 		"""Set tax cost penalty based on realized gains from selling tax lots."""
-		if tax_lot_ledger is None:
+		if tax_lot_ledger is None or rebalance_problem.apply_tax_objective is False:
 			return 0
-		
-		total_portfolio_value = tax_lot_ledger._base_nav
-		tax_costs = getattr(tax_lot_ledger, "tax_cost", 0.0)
+
+		tax_lots = tax_lot_ledger.tax_lots
 		sell_fractions = decision_variables.get('portfolio_sell_fractions')
+		total_portfolio_value = tax_lots["CurrentValue"].sum() if not tax_lots.empty else 1.0
+		tax_costs = tax_lots["TaxCost"].values
 		return cp.sum(cp.multiply(tax_costs / total_portfolio_value, sell_fractions))
 
 	def _map_lot_to_ticker(self, 
 						   tax_lots: pd.DataFrame, 
-						   tickers: list) -> pd.DataFrame:
-		n_rows = len(tax_lots)
-		n_cols = len(tickers)
-		matrix = np.zeros((n_rows, n_cols))
-		for i, ticker in enumerate(tax_lots["Ticker"].values):
-			j = tickers.index(ticker)
-			matrix[i][j] = 1
+						   risky_tickers: list) -> pd.DataFrame:
+		matrix = np.zeros((len(tax_lots), len(risky_tickers)))
+		ticker_positions = {
+			ticker: index
+			for index, ticker in enumerate(risky_tickers)
+		}
+
+		for lot_index, ticker in enumerate(tax_lots["Ticker"]):
+			ticker_position = ticker_positions.get(ticker)
+			if ticker_position is not None:
+				matrix[lot_index, ticker_position] = 1
+
 		return matrix
 
 	def _log_failure_diagnostics(self, prob, current_weights, signals):

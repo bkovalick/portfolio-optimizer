@@ -46,9 +46,17 @@ class RebalanceProblem:
     @property
     def cash_index(self) -> int | None:
         try:
-            return self.investment_universe.index("Cash")
+            cash_index = next(
+                (
+                    index
+                    for index, ticker in enumerate(self.investment_universe)
+                    if ticker.upper() == "CASH"
+                ),
+                None,
+            )
         except:
             return None
+        return cash_index
     
     @property
     def has_cash(self) -> bool:
