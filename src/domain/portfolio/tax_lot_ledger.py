@@ -12,6 +12,7 @@ class TaxLotLedger:
         self._base_nav = 1_000_000_000
         self._last_rebalance_date = None
         self._last_rebalance_weights = None
+        self._next_lot_id = 0
         self._tax_lots = pd.DataFrame(
             columns=[
                 "AcquisitionDate",
@@ -28,19 +29,42 @@ class TaxLotLedger:
                 "TotalGain",
                 "TaxCost",
             ]
-        )        
+        ).rename_axis("LotId")
 
-    def update_ledger(self,
-               market_state: MarketState,
-               portfolio: Portfolio,
-               rebalance_solution: RebalanceSolution,
-               cursor: int) -> None:
-        """Updates the tax lot ledger given the current portfolio state."""
+    def initialize(self, market_state: MarketState, portfolio: Portfolio, cursor: int) -> None:
+        """Seed open lots from the initial portfolio holdings."""
         rebalance_date = portfolio.weights.index[cursor]
-        if self._last_rebalance_date is not None and rebalance_date <= self._last_rebalance_date:
+
+        self._process_buy_lots(
+            portfolio=portfolio,
+            cursor=cursor,
+            acquisition_date=rebalance_date,
+            current_prices=market_state.investment_prices.iloc[cursor],
+        )
+
+        self._last_rebalance_weights = portfolio.weights.iloc[cursor].copy()
+        self._last_rebalance_date = rebalance_date
+
+    def mark_to_market(self, market_state: MarketState, cursor: int) -> None:
+        """Updates the current prices and calculates gains, tax costs, and other relevant metrics for each tax lot."""
+        rebalance_date = market_state.investment_prices.index[cursor]
+        current_prices = market_state.investment_prices.iloc[cursor]
+        self._update_current_prices(rebalance_date, current_prices)
+
+    def apply_rebalance(self,
+                        market_state: MarketState,
+                        portfolio: Portfolio,
+                        rebalance_solution: RebalanceSolution,
+                        cursor: int) -> None:
+        """Apply completed rebalance trades to the open tax-lot ledger."""
+        rebalance_date = portfolio.weights.index[cursor]
+
+        if (self._last_rebalance_date is not None
+            and rebalance_date <= self._last_rebalance_date):
             raise ValueError(
-                f"Rebalance date {rebalance_date} is not after the last rebalance date {self._last_rebalance_date}."
-            )
+                f"Rebalance date {rebalance_date} must be after "
+                f"the last applied rebalance date "
+                f"{self._last_rebalance_date}.")
 
         self._process_rebalance(
             market_state=market_state,
@@ -49,7 +73,7 @@ class TaxLotLedger:
             cursor=cursor
         )
         self._last_rebalance_weights = portfolio.weights.iloc[cursor].copy()
-        self._last_rebalance_date = rebalance_date
+        self._last_rebalance_date = portfolio.weights.index[cursor]
 
     def _process_rebalance(self,
                            market_state: MarketState,
@@ -120,7 +144,7 @@ class TaxLotLedger:
                 continue
 
             delta_weight = current_weights[ticker] - previous_weights[ticker]
-            current_price = current_prices[ticker]
+            current_price = current_prices.get(ticker)
             if current_price is None or pd.isna(current_price) or current_price <= 0:
                 continue
 
@@ -131,7 +155,13 @@ class TaxLotLedger:
         new_tax_lots_df = pd.DataFrame.from_dict(new_lots, orient="index")
         new_tax_lots_df.index.names = ["AcquisitionDate", "Ticker"]
         new_tax_lots_df = new_tax_lots_df.reset_index()
-        self._tax_lots = pd.concat([self._tax_lots, new_tax_lots_df], ignore_index=True)
+        new_tax_lots_df.index = pd.RangeIndex(
+            start=self._next_lot_id,
+            stop=self._next_lot_id + len(new_tax_lots_df),
+            name="LotId",
+        )
+        self._next_lot_id += len(new_tax_lots_df)
+        self._tax_lots = pd.concat([self._tax_lots, new_tax_lots_df])
                 
     def _process_buy_lot(self, shares: float, current_price: float) -> pd.DataFrame:
         """Processes a single buy transaction and returns the new tax lot information."""

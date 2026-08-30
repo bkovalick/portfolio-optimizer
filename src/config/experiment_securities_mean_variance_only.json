@@ -333,7 +333,7 @@
         "cash_infusion": 0,        
         "optimizer_type": "portfolio_optimizer",
         "rebalance_frequency": "weekly",
-        "apply_tax_objective": true,
+        "apply_tax_objective": false,
         "apply_max_return_objective": true,
         "constraints": {
           "concentration_strength": 1,

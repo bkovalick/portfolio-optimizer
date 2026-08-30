@@ -65,17 +65,7 @@ class BacktestingEngine(BacktestingEngineInterface):
         )
 
         if self.tax_lot_ledger is not None:
-            self.tax_lot_ledger.update_ledger(
-                self.market_state,
-                self.portfolio,
-                rebalance_solution=RebalanceSolution(
-                    target_weights=initial_weights,
-                    sell_allocations={},
-                    realized_tax_cost=0.0,
-                    tracking_error=0.0
-                ),
-                cursor=0
-            )
+           self.tax_lot_ledger.initialize(self.market_state, self.portfolio, cursor=0)
         
         prev_weights = np.array(initial_weights)
         current_year = None
@@ -101,24 +91,29 @@ class BacktestingEngine(BacktestingEngineInterface):
             if not self._is_rebalance_step(cursor):
                 continue
 
+            logger.debug("Rebalance step reached at %s (cursor=%s)", date, cursor)   
             signals = self.signals_factory.build_signals()
-            logger.debug("Rebalance step reached at %s (cursor=%s)", date, cursor)
+            
+            if self.tax_lot_ledger is not None:
+                self.tax_lot_ledger.mark_to_market(
+                    market_state=self.market_state,
+                    cursor=cursor,
+                )
 
             rebalance_context = self._build_rebalance_context(cursor, signals, rebalance_problem)
-            rebalance_solution = self.strategy.rebalance(rebalance_context)
-            target_weights = np.array(rebalance_solution.target_weights)
 
-            self.portfolio.apply(target_weights, prev_weights, cursor)
+            rebalance_solution = self.strategy.rebalance(rebalance_context)
+            self.portfolio.apply(rebalance_solution.target_weights.values, prev_weights, cursor)
 
             if self.tax_lot_ledger is not None:
-                self.tax_lot_ledger.update_ledger(
+                self.tax_lot_ledger.apply_rebalance(
                     self.market_state,
                     self.portfolio,
                     rebalance_solution,
                     cursor
                 )
 
-            prev_weights = target_weights
+            prev_weights = rebalance_solution.target_weights.values
 
         logger.info("Backtest completed in %.2f seconds", time.time() - start_time)
         print("Backtest completed in %.2f seconds" % (time.time() - start_time))
